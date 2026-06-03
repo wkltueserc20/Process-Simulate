@@ -6,3 +6,12 @@
 # OS
 Thumbs.db
 .DS_Store
+
+# Tauri / Rust 建置輸出
+src-tauri/target/
+src-tauri/gen/
+
+# 使用者匯出的情境/製程線 JSON（測試用，不入版控）
+/scenario-*.json
+/ABF*.json
+/SMK*.json

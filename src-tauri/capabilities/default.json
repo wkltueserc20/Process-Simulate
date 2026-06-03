@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "預設能力：核心功能（Level A 無外掛/自訂指令）",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

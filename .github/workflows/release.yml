@@ -1,0 +1,41 @@
+name: release
+
+# 推送 v* 標籤即建置 Windows 安裝檔並發佈到 GitHub Releases
+# 例：git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '發佈用標籤（例如 v0.1.0）'
+        required: true
+        default: v0.1.0
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Build & publish (Tauri)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: "製程AGV模擬 ${{ github.event.inputs.tag || github.ref_name }}"
+          releaseBody: "Windows 桌面版安裝檔（NSIS .exe / .msi）。使用系統 WebView2，離線可用。"
+          releaseDraft: false
+          prerelease: false

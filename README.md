@@ -1,24 +1,50 @@
 # 製程 AGV 模擬系統
 
-一套**純前端、單檔**的製程 AGV（無人搬運車）動態模擬器，用來觀察 ABF 與 SMK 兩條製程線在不同參數下的產能、瓶頸與 AGV 稼動狀況。整個系統就是一個 `index.html`，打開瀏覽器即可執行，無需安裝、無需後端。
+一套**純前端**的製程 AGV（無人搬運車）動態模擬器，用來觀察 ABF 與 SMK 兩條製程線在不同參數下的產能、瓶頸與 AGV 稼動狀況。前端為 `ui/index.html`，打開瀏覽器即可執行；亦可用 Tauri 打包成桌面應用離線使用。
 
 > 開發單位：擎添工業（Ching Tech）
 
 ---
 
-## 快速開始
+## 快速開始（瀏覽器）
 
-直接用瀏覽器開啟 `index.html` 即可（建議 Chrome / Edge）。
+直接用瀏覽器開啟 `ui/index.html` 即可（建議 Chrome / Edge）。
 
 ```bash
-# 方法一：直接雙擊 index.html
+# 方法一：直接雙擊 ui/index.html
 
 # 方法二：本機起一個簡易伺服器（擇一）
-python -m http.server 8000      # 然後開 http://localhost:8000
-npx serve .
+python -m http.server 8000 --directory ui   # 然後開 http://localhost:8000
+npx serve ui
 ```
 
-啟動後先在首頁選擇要模擬的製程線（**ABF** 或 **SMK**），再按「▶ 播放」開始。
+啟動後先在首頁選擇要模擬的製程線（**ABF** / **SMK** / 自訂線），再按「▶ 播放」開始。
+
+---
+
+## 桌面版（Tauri v2）
+
+以 [Tauri v2](https://v2.tauri.app/) 打包成 Windows 桌面應用（使用系統 WebView2，安裝檔小、可離線）。
+
+**前置需求**：Rust（rustup）、Windows 為 MSVC build tools 與 WebView2 runtime（Win10/11 多已內建）、Tauri CLI。
+
+```powershell
+# 1) 安裝 Tauri CLI（一次）
+cargo install tauri-cli --version "^2"
+
+# 2) 準備圖示（任一方形 PNG，例如公司 logo）
+cargo tauri icon path\to\logo.png
+
+# 3) 開發模式（熱啟動視窗）
+cargo tauri dev
+
+# 4) 產生安裝檔（.exe / .msi）
+cargo tauri build
+```
+
+- 前端資源在 `ui/`（含本地 `vendor/chart.umd.min.js`，離線可用）；Rust 殼在 `src-tauri/`。
+- 視窗大小、標題、CSP 在 `src-tauri/tauri.conf.json`。
+- 此為 Level A 純包裝：對話框與檔案匯入匯出沿用瀏覽器行為（原生整合為後續工作）。
 
 ---
 
@@ -52,10 +78,11 @@ npx serve .
 
 ## 技術說明
 
-- **HTML + CSS + 原生 JavaScript**，單一檔案 `index.html`，無建置流程。
-- 圖表：[Chart.js 4.4.3](https://www.chartjs.org/)（以 CDN 載入，唯一外部相依）。
+- **HTML + CSS + 原生 JavaScript**，前端為單一 `ui/index.html`，無建置流程。
+- 圖表：[Chart.js 4.4.3](https://www.chartjs.org/)（本地隨附於 `ui/vendor/`，離線可用）。
 - 工廠平面與站別／AGV 皆以 **SVG** 繪製；縮放／平移透過操作 SVG `viewBox` 攝影機實作。
 - 模擬引擎以固定時間步進（`dt`）推進站別機台邏輯與 AGV 任務分配，逐幀更新畫面。
+- 桌面版以 **Tauri v2 + Rust** 包裝（系統 WebView2），殼在 `src-tauri/`。
 
 ---
 
@@ -63,7 +90,13 @@ npx serve .
 
 ```
 .
-├── index.html              # 完整模擬系統（單檔）
+├── ui/                     # 前端（瀏覽器 / Tauri 共用）
+│   ├── index.html          # 完整模擬系統
+│   └── vendor/             # 本地相依（chart.umd.min.js）
+├── src-tauri/              # Tauri v2 桌面殼（Rust）
+│   ├── tauri.conf.json     # 視窗 / CSP / frontendDist
+│   ├── Cargo.toml          # Rust 相依
+│   └── src/main.rs         # 啟動殼
 ├── sim-params-abf.json     # ABF 線參數情境範例
 ├── openspec/               # 規格驅動開發（OpenSpec）的提案與規格
 │   ├── specs/              # 主規格（已同步的能力規格）
