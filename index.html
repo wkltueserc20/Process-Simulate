@@ -278,46 +278,25 @@ const DEF = {
   smkR0:250, smkR1:290, smkR2:170, smkR3:200, smkR4:200,   // CLN↔Ann, Ann↔CZ, CZ↔Bak, Bak↔壓機, 壓機↔曝光
   smkR5:200, smkR6:250, smkR7:200, smkR8:200, smkR9:200,   // 曝光↔顯影, 顯影↔SoftBak, SoftBak↔UVQ, UVQ↔Post, Post↔換框
   // SMK 回程直達路段（空框跳過中間緩衝站，秒）
-  smkD02:540, smkD24:370, smkD68:450, smkD810:400          // CZ↔CLN, 壓機↔CZ, UVQ↔顯影, 換框機↔UVQ
+  smkD02:540, smkD24:370, smkD68:450, smkD810:400,         // CZ↔CLN, 壓機↔CZ, UVQ↔顯影, 換框機↔UVQ
+  // ── 設備數量（可在頁面調整；機台/AGV 1–9，緩衝容量 ≥1）──
+  // ABF 並聯機台數
+  abfCzN:2, abfPressN:4, abfChangerN:2,
+  // ABF 緩衝站容量
+  abfAnnBuf:16, abfBakBuf:6, abfPostBuf:6,
+  // ABF 各組 AGV 數量（G1 CLN→CZ, G2 CZ→壓機, G3 壓機→換框）
+  abfG1Agv:2, abfG2Agv:2, abfG3Agv:3,
+  // SMK 並聯機台數
+  smkCzN:2, smkPressN:4, smkExpN:1, smkDevN:2, smkUvqN:2, smkChangerN:2,
+  // SMK 緩衝站容量
+  smkAnnBuf:16, smkBakBuf:6, smkSoftBuf:6, smkPostBuf:6,
+  // SMK 各組 AGV 數量（G1–G6）
+  smkG1Agv:2, smkG2Agv:2, smkG3Agv:1, smkG4Agv:1, smkG5Agv:2, smkG6Agv:3
 };
 let P = {...DEF};
 
-// ABF Station definitions
-// xi = 主軌道位置(0-6)，sub = 同位置第幾台(0起)
-// Indices: 0=CLN,1=Annealing,2=CZ_1,3=Baking,4=ABF壓機_1,5=Postcure,6=換框機
-//          7=CZ_2, 8=ABF壓機_2, 9=ABF壓機_3, 10=ABF壓機_4
-const ABF_DEFS = [
-  {name:'CLN',       mtype:'refill',   xi:0, sub:0},
-  {name:'Annealing', buf:16, holdTime:10, xi:1, sub:0},
-  {name:'CZ_1',      mtype:'transfer', xi:2, sub:0},
-  {name:'Baking',    buf:6,            xi:3, sub:0},
-  {name:'ABF壓機_1', mtype:'transfer', xi:4, sub:0},
-  {name:'Postcure',  buf:6,            xi:5, sub:0},
-  {name:'換框機',    mtype:'changer',  xi:6, sub:0},
-  {name:'CZ_2',      mtype:'transfer', xi:2, sub:1},
-  {name:'ABF壓機_2', mtype:'transfer', xi:4, sub:1},
-  {name:'ABF壓機_3', mtype:'transfer', xi:4, sub:2},
-  {name:'ABF壓機_4', mtype:'transfer', xi:4, sub:3},
-  {name:'換框機_2',  mtype:'changer',  xi:6, sub:1},
-];
-const CZ_INDICES      = [2, 7];
-const PRESS_INDICES   = [4, 8, 9, 10];
-const CHANGER_INDICES = [6, 11];
-const SUB_SPACING     = 185; // 同位置機台間的垂直間距（px）
-
-// ABF AGV — 三組專用 AGV
-// Group 1 (A1, A2): CLN ↔ Annealing ↔ CZ（含空框回程）
-// Group 2 (A3, A4): CZ ↔ Baking ↔ ABF壓機（含空框回程）
-// Group 3 (A5, A6): ABF壓機 ↔ Postcure ↔ 換框機（含空框回程）
-const ABF_AGV_INITS = [
-  {id:'A1', pos:0, stag:0,   grp:1},  // 起始於 CLN
-  {id:'A2', pos:1, stag:30,  grp:1},  // 起始於 Annealing
-  {id:'A3', pos:2, stag:60,  grp:2},  // 起始於 CZ
-  {id:'A4', pos:4, stag:90,  grp:2},  // 起始於 ABF壓機
-  {id:'A5', pos:6,  stag:120, grp:3},  // 起始於 換框機_1
-  {id:'A6', pos:5,  stag:150, grp:3},  // 起始於 Postcure
-  {id:'A7', pos:11, stag:180, grp:3},  // 起始於 換框機_2
-];
+// 同位置機台間的垂直間距（px）
+const SUB_SPACING = 185;
 
 // 站點行走時間查表（每對獨立，不累加）—— ABF route
 // 同一 xi（同一物理位置）距離=0
@@ -341,28 +320,110 @@ function routeABF(i,j){
 function tABF(i,j){ return LC.route(i,j); }
 
 // ══════════════════════════════════════════════════════════════
-// LINE CONFIG —— 一般化引擎接點（ABF 先行，SMK 由後續 change 加入）
-// 每條線提供：站別定義 defs、AGV 起始 agvInits、路段 route、群組任務 groupTasks
+// LINE BLUEPRINTS + 動態產生器
+// 每條線：spine（站別脊椎，每 xi 一欄）、groups（型別接線）、layout（靜態部分）
+// 可數型別(transfer/changer)用 countKey；緩衝站用 bufKey；CLN(refill) 固定 1 台
+// src/dst/mid 以「角色(role)」描述，產生時依實際 defs 索引解析（數量變動自動對應）
 // ══════════════════════════════════════════════════════════════
-const LINES = {
+const BLUEPRINTS = {
   abf: {
-    id:'abf',
-    defs: ABF_DEFS,
-    agvInits: ABF_AGV_INITS,
-    route: routeABF,
-    procTime: procTimeABF,
-    // 群組以資料描述：src(來源集)→mid(緩衝, null=2站直送)→dst(目的集)；priA/priB 任務優先度
-    // midSpace 複製舊碼三組不一致的緩衝空間檢查（'pending'含暫存/'avail'僅fullAvail/'none'不檢查）
-    groups: [
-      {grp:1, src:[0],        mid:1,  dst:[2,7],      priA:7, priB:9, midSpace:'pending'},
-      {grp:2, src:[2,7],      mid:3,  dst:[4,8,9,10], priA:8, priB:9, midSpace:'avail'},
-      {grp:3, src:[4,8,9,10], mid:5,  dst:[6,11],     priA:9, priB:8, midSpace:'none'},
+    id:'abf', route:routeABF, procTime:procTimeABF,
+    spine:[
+      {role:'cln',  type:'refill',   name:'CLN',       xi:0},
+      {role:'ann',  type:'buffer',   name:'Annealing', xi:1, bufKey:'abfAnnBuf', holdTime:10},
+      {role:'cz',   type:'transfer', name:'CZ',        xi:2, countKey:'abfCzN'},
+      {role:'bak',  type:'buffer',   name:'Baking',    xi:3, bufKey:'abfBakBuf'},
+      {role:'press',type:'transfer', name:'ABF壓機',   xi:4, countKey:'abfPressN'},
+      {role:'post', type:'buffer',   name:'Postcure',  xi:5, bufKey:'abfPostBuf'},
+      {role:'chg',  type:'changer',  name:'換框機',    xi:6, countKey:'abfChangerN'},
     ],
-    layout:{ type:'row', xiCount:7, zones:[[0,2],[2,4],[4,6]], agvLbls:['A1,A2','A3,A4','A5,A6,A7'], viewBox:'0 0 1400 870', legendY:838, header:'ABF 製程線',
+    groups:[
+      {grp:1, src:'cln',   mid:'ann',  dst:'cz',    agvKey:'abfG1Agv', priA:7, priB:9, midSpace:'pending'},
+      {grp:2, src:'cz',    mid:'bak',  dst:'press', agvKey:'abfG2Agv', priA:8, priB:9, midSpace:'avail'},
+      {grp:3, src:'press', mid:'post', dst:'chg',   agvKey:'abfG3Agv', priA:9, priB:8, midSpace:'none'},
+    ],
+    layout:{ type:'row', xiCount:7, zones:[[0,2],[2,4],[4,6]], header:'ABF 製程線', baseVB:'0 0 1400 870',
       simple:{ rows:[[0,1,2,3,4,5,6]], rowY:[280], rowTrack:[[160,182]], viewBox:'0 0 1400 460', legendY:430 } },
-  }
+  },
+  smk: {
+    id:'smk', route:routeSMK, procTime:procTimeSMK,
+    spine:[
+      {role:'cln',  type:'refill',   name:'CLN',        xi:0},
+      {role:'ann',  type:'buffer',   name:'Annealing',  xi:1,  bufKey:'smkAnnBuf', holdTime:10},
+      {role:'cz',   type:'transfer', name:'CZ',         xi:2,  countKey:'smkCzN'},
+      {role:'bak',  type:'buffer',   name:'Baking',     xi:3,  bufKey:'smkBakBuf'},
+      {role:'press',type:'transfer', name:'SMK壓機',    xi:4,  countKey:'smkPressN'},
+      {role:'exp',  type:'transfer', name:'曝光機',     xi:5,  countKey:'smkExpN'},
+      {role:'dev',  type:'transfer', name:'顯影機',     xi:6,  countKey:'smkDevN'},
+      {role:'soft', type:'buffer',   name:'SoftBaking', xi:7,  bufKey:'smkSoftBuf'},
+      {role:'uvq',  type:'transfer', name:'UVQ',        xi:8,  countKey:'smkUvqN'},
+      {role:'post', type:'buffer',   name:'Postcure',   xi:9,  bufKey:'smkPostBuf'},
+      {role:'chg',  type:'changer',  name:'換框機',     xi:10, countKey:'smkChangerN'},
+    ],
+    groups:[
+      {grp:1, src:'cln',   mid:'ann',  dst:'cz',    agvKey:'smkG1Agv', priA:8, priB:9, midSpace:'pending'},
+      {grp:2, src:'cz',    mid:'bak',  dst:'press', agvKey:'smkG2Agv', priA:8, priB:9, midSpace:'pending'},
+      {grp:3, src:'press', mid:null,   dst:'exp',   agvKey:'smkG3Agv', priA:9},
+      {grp:4, src:'exp',   mid:null,   dst:'dev',   agvKey:'smkG4Agv', priA:9},
+      {grp:5, src:'dev',   mid:'soft', dst:'uvq',   agvKey:'smkG5Agv', priA:8, priB:9, midSpace:'pending'},
+      {grp:6, src:'uvq',   mid:'post', dst:'chg',   agvKey:'smkG6Agv', priA:8, priB:9, midSpace:'pending'},
+    ],
+    layout:{ type:'row', xiCount:11, gap:210, zones:[[0,2],[2,4],[4,5],[5,6],[6,8],[8,10]], header:'SMK 製程線', baseVB:'0 0 2440 880',
+      simple:{ rows:[[0,1,2,3,4,5],[6,7,8,9,10]], rowY:[250,510], rowTrack:[[165,185],[425,445]], viewBox:'-20 0 1500 660', legendY:628 } },
+  },
 };
-let LC = LINES.abf; // 當前作用中的 line config
+function clampInt(v,lo,hi){ v=Math.round(+v||lo); return Math.max(lo,Math.min(hi,v)); }
+// 依藍圖 + 數量參數產生站別清單與「角色→索引」對照
+function genDefs(bp){
+  const defs=[], byRole={};
+  for(const col of bp.spine){
+    const n = col.countKey ? clampInt(P[col.countKey],1,9) : 1;
+    byRole[col.role]=[];
+    for(let k=0;k<n;k++){
+      const idx=defs.length, d={xi:col.xi, sub:k};
+      if(col.type==='buffer'){
+        d.name=col.name; d.buf=Math.max(1, P[col.bufKey]|0); if(col.holdTime) d.holdTime=col.holdTime;
+      } else {
+        d.name = col.countKey ? `${col.name}_${k+1}` : col.name;
+        d.mtype = col.type; // refill / transfer / changer
+      }
+      defs.push(d); byRole[col.role].push(idx);
+    }
+  }
+  return {defs, byRole};
+}
+function genGroups(bp, byRole){
+  return bp.groups.map(g=>({
+    grp:g.grp, src:byRole[g.src], dst:byRole[g.dst],
+    mid: g.mid!=null ? byRole[g.mid][0] : null,
+    priA:g.priA, priB:g.priB, midSpace:g.midSpace,
+  }));
+}
+function genAgvs(bp, byRole){
+  const agvs=[]; let gi=0;
+  for(const g of bp.groups){
+    const n=clampInt(P[g.agvKey],1,9);
+    const pool=[...byRole[g.src], ...(g.mid!=null?byRole[g.mid]:[]), ...byRole[g.dst]];
+    for(let k=0;k<n;k++){ agvs.push({id:'A'+(gi+1), pos:pool[k%pool.length], stag:gi*30, grp:g.grp}); gi++; }
+  }
+  return agvs;
+}
+function genLayout(bp, defs){
+  const maxSub = defs.reduce((m,d)=>Math.max(m,d.sub),0)+1;
+  const [vx,vy,vw,vh] = bp.layout.baseVB.split(' ').map(Number);
+  const H = Math.max(vh, ABF_SY + (maxSub-1)*SUB_SPACING + 120);
+  const agvLbls=[]; let gi=0;
+  for(const g of bp.groups){ const n=clampInt(P[g.agvKey],1,9), ids=[]; for(let k=0;k<n;k++){ids.push('A'+(gi+1));gi++;} agvLbls.push(ids.join(',')); }
+  return {...bp.layout, agvLbls, viewBox:`${vx} ${vy} ${vw} ${H}`, legendY:H-32};
+}
+// 依當前 P 產生完整 line config（取代寫死的 LINES）
+function buildLineConfig(lineId){
+  const bp = BLUEPRINTS[lineId] || BLUEPRINTS.abf;
+  const {defs, byRole} = genDefs(bp);
+  return { id:bp.id, defs, route:bp.route, procTime:bp.procTime,
+           agvInits:genAgvs(bp, byRole), groups:genGroups(bp, byRole), layout:genLayout(bp, defs) };
+}
+let LC = null; // 當前作用中的 line config（由 initSim 透過 buildLineConfig 產生）
 
 // ── 通用群組任務產生器（取代 getGroup1/2/3Tasks，支援 2 站直送）──
 // 站別型態判斷（用於來源出滿框 / 來源收空框 / 目的入料 / 目的退空框）
@@ -408,40 +469,11 @@ function genGroupTasks(g){
 }
 
 // ══════════════════════════════════════════════════════════════
-// SMK line config（ABF 式 slot/PORT 引擎；線性 11 站，6 組 A1–A11）
+// SMK line config（ABF 式 slot/PORT 引擎；線性 11 站，6 組）
 // 站別型態：CLN=refill；Annealing/Baking/SoftBaking/Postcure=buffer；
 //          CZ/SMK壓機/曝光機/顯影機/UVQ=transfer；換框機=changer
+// 站別/AGV/群組/佈局由 BLUEPRINTS.smk + 產生器動態產生（見上）
 // ══════════════════════════════════════════════════════════════
-const SMK_DEFS = [
-  {name:'CLN',        mtype:'refill',   xi:0,  sub:0},   // 0
-  {name:'Annealing',  buf:16, holdTime:10, xi:1, sub:0}, // 1
-  {name:'CZ_1',       mtype:'transfer', xi:2,  sub:0},   // 2
-  {name:'Baking',     buf:6,            xi:3,  sub:0},   // 3
-  {name:'SMK壓機_1',  mtype:'transfer', xi:4,  sub:0},   // 4
-  {name:'曝光機',     mtype:'transfer', xi:5,  sub:0},   // 5
-  {name:'顯影機_1',   mtype:'transfer', xi:6,  sub:0},   // 6
-  {name:'SoftBaking', buf:6,            xi:7,  sub:0},   // 7
-  {name:'UVQ_1',      mtype:'transfer', xi:8,  sub:0},   // 8
-  {name:'Postcure',   buf:6,            xi:9,  sub:0},   // 9
-  {name:'換框機_1',   mtype:'changer',  xi:10, sub:0},   // 10
-  // 多機台（同 xi 不同 sub，垂直堆疊）
-  {name:'CZ_2',       mtype:'transfer', xi:2,  sub:1},   // 11
-  {name:'SMK壓機_2',  mtype:'transfer', xi:4,  sub:1},   // 12
-  {name:'SMK壓機_3',  mtype:'transfer', xi:4,  sub:2},   // 13
-  {name:'SMK壓機_4',  mtype:'transfer', xi:4,  sub:3},   // 14
-  {name:'顯影機_2',   mtype:'transfer', xi:6,  sub:1},   // 15
-  {name:'UVQ_2',      mtype:'transfer', xi:8,  sub:1},   // 16
-  {name:'換框機_2',   mtype:'changer',  xi:10, sub:1},   // 17
-];
-// 6 組專用 AGV（A1–A11）
-const SMK_AGV_INITS = [
-  {id:'A1', pos:0,  stag:0,   grp:1},  {id:'A2', pos:1,  stag:30,  grp:1}, // G1 CLN→Ann→CZ
-  {id:'A3', pos:2,  stag:60,  grp:2},  {id:'A4', pos:4,  stag:90,  grp:2}, // G2 CZ→Bak→壓機
-  {id:'A5', pos:4,  stag:120, grp:3},                                       // G3 壓機→曝光（直送）
-  {id:'A6', pos:5,  stag:150, grp:4},                                       // G4 曝光→顯影（直送）
-  {id:'A7', pos:6,  stag:180, grp:5},  {id:'A8', pos:7,  stag:210, grp:5}, // G5 顯影→SoftBak→UVQ
-  {id:'A9', pos:8,  stag:240, grp:6},  {id:'A10',pos:9,  stag:270, grp:6}, {id:'A11',pos:10, stag:300, grp:6}, // G6 UVQ→Post→換框
-];
 // SMK 路段行走時間：線性 10 段，距離 = 起訖站之間各段時間總和
 const SMK_ROUTE_KEYS=['smkR0','smkR1','smkR2','smkR3','smkR4','smkR5','smkR6','smkR7','smkR8','smkR9'];
 function routeSMK(i,j){
@@ -475,90 +507,10 @@ function procTimeSMK(d){
 }
 // 當前作用線每框片數
 function curBatch(){ return LC.id==='smk' ? P.smkBt : P.abfBt; }
-LINES.smk = {
-  id:'smk',
-  defs: SMK_DEFS,
-  agvInits: SMK_AGV_INITS,
-  route: routeSMK,
-  procTime: procTimeSMK,
-  // 多機台索引：CZ[2,11] 壓機[4,12,13,14] 顯影[6,15] UVQ[8,16] 換框機[10,17]
-  groups: [
-    {grp:1, src:[0],          mid:1,    dst:[2,11],        priA:8, priB:9, midSpace:'pending'},
-    {grp:2, src:[2,11],       mid:3,    dst:[4,12,13,14],  priA:8, priB:9, midSpace:'pending'},
-    {grp:3, src:[4,12,13,14], mid:null, dst:[5],           priA:9},                 // 2 站直送
-    {grp:4, src:[5],          mid:null, dst:[6,15],        priA:9},                 // 2 站直送
-    {grp:5, src:[6,15],       mid:7,    dst:[8,16],        priA:8, priB:9, midSpace:'pending'},
-    {grp:6, src:[8,16],       mid:9,    dst:[10,17],       priA:8, priB:9, midSpace:'pending'},
-  ],
-  // 單列佈局：11 主站水平、多機台垂直往下堆疊（同 ABF）；viewBox 加寬容納
-  layout:{ type:'row', xiCount:11, gap:210,
-           zones:[[0,2],[2,4],[4,5],[5,6],[6,8],[8,10]],
-           agvLbls:['A1,A2','A3,A4','A5','A6','A7,A8','A9,A10,A11'],
-           viewBox:'0 0 2440 880', legendY:846, header:'SMK 製程線',
-           simple:{ rows:[[0,1,2,3,4,5],[6,7,8,9,10]], rowY:[250,510], rowTrack:[[165,185],[425,445]], viewBox:'-20 0 1500 660', legendY:628 } },
-};
 
 // 根據站點類型選擇取/放料時間
 function getPickTime(si){ const smk=LC.id==='smk'; return abfSt[si]?.buf ? (smk?P.smkBufPick:P.bufPickTime) : (smk?P.smkPick:P.pickTime); }
 function getDropTime(si){ const smk=LC.id==='smk'; return abfSt[si]?.buf ? (smk?P.smkBufDrop:P.bufDropTime) : (smk?P.smkDrop:P.dropTime); }
-
-// Group 1 任務：CLN ↔ Annealing ↔ CZ（所有 CZ 機台）
-function getGroup1Tasks(){
-  const s = abfSt;
-  const T = [];
-  // CLN 出滿框 → Annealing
-  if(s[0].s_out && !s[0].s_out_res && s[1].fullAvail+s[1].pendingFrames.length < s[1].buf)
-    T.push({f:0,t:1,c:'full',pri:7});
-  // Annealing → 任一空的 CZ 入滿框（目的地沒框且未預訂）
-  for(const ci of CZ_INDICES)
-    if(s[1].fullAvail > s[1].fullReserved && s[ci].in_full===0 && !s[ci].in_full_res)
-      T.push({f:1,t:ci,c:'full',pri:9});
-  // 每台 CZ 退空框 → CLN 收空框（CLN 收空框位沒框且未預訂）
-  for(const ci of CZ_INDICES)
-    if(s[ci].in_ret && !s[ci].in_ret_hold && !s[ci].in_ret_res && s[0].s_recv===0 && !s[0].s_recv_res)
-      T.push({f:ci,t:0,c:'empty',pri:10});
-  return T;
-}
-
-// Group 2 任務：CZ ↔ Baking ↔ ABF壓機（所有 CZ 和 ABF壓機 機台）
-function getGroup2Tasks(){
-  const s = abfSt;
-  const T = [];
-  // 每台 CZ 出滿框 → Baking
-  for(const ci of CZ_INDICES)
-    if(s[ci].out_full && !s[ci].out_full_hold && !s[ci].out_full_res && s[3].fullAvail < s[3].buf)
-      T.push({f:ci,t:3,c:'full',pri:8});
-  // Baking → 任一空的 ABF壓機 入滿框（目的地沒框且未預訂）
-  for(const pi of PRESS_INDICES)
-    if(s[3].fullAvail > s[3].fullReserved && s[pi].in_full===0 && !s[pi].in_full_res)
-      T.push({f:3,t:pi,c:'full',pri:9});
-  // 每台 ABF壓機 退空框 → 任一空的 CZ 出料收空框（目的地沒框且未預訂）
-  for(const pi of PRESS_INDICES)
-    if(s[pi].in_ret && !s[pi].in_ret_hold && !s[pi].in_ret_res)
-      for(const ci of CZ_INDICES)
-        if(s[ci].out_recv===0 && !s[ci].out_recv_res){ T.push({f:pi,t:ci,c:'empty',pri:10}); break; }
-  return T;
-}
-
-// Group 3 任務：ABF壓機 ↔ Postcure ↔ 換框機（所有 ABF壓機 機台）
-function getGroup3Tasks(){
-  const s = abfSt;
-  const T = [];
-  // 每台 ABF壓機 出滿框 → Postcure
-  for(const pi of PRESS_INDICES)
-    if(s[pi].out_full && !s[pi].out_full_hold && !s[pi].out_full_res)
-      T.push({f:pi,t:5,c:'full',pri:9});
-  // Postcure → 任一空的 換框機 入滿框（目的地沒框且未預訂）
-  for(const chi of CHANGER_INDICES)
-    if(s[5].fullAvail > s[5].fullReserved && s[chi].in_full===0 && !s[chi].in_full_res)
-      T.push({f:5,t:chi,c:'full',pri:8});
-  // 每台換框機 退空框 → 任一空的 ABF壓機 出料收空框（目的地沒框且未預訂）
-  for(const chi of CHANGER_INDICES)
-    if(s[chi].in_ret && !s[chi].in_ret_hold && !s[chi].in_ret_res)
-      for(const pi of PRESS_INDICES)
-        if(s[pi].out_recv===0 && !s[pi].out_recv_res){ T.push({f:chi,t:pi,c:'empty',pri:10}); break; }
-  return T;
-}
 
 // 預訂目的地 slot：AGV 接受任務時同時鎖定目的地，防止兩台 AGV 同時投遞到同一個空 slot
 function reserveDestination(destIdx, cargo){
@@ -640,7 +592,7 @@ function computeGeom(L){
   return out;
 }
 function initSim(){
-  LC = LINES[selectedLine] || LINES.abf; // 一般化接點：選定當前 line config
+  LC = buildLineConfig(selectedLine); // 依當前 P 的設備數量動態產生 line config
   simT=0; running=false; lastRT=null;
   abfOut=[]; abfPcs=0; lastChart=-999;
   cdata={labels:[],abf:[],smk:[]};
@@ -1991,11 +1943,38 @@ const PARAM_META=[
   {key:'smkD24', label:'SMK壓機 ↔ CZ 直達（回程）', unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'d24'},
   {key:'smkD68', label:'UVQ ↔ 顯影機 直達（回程）', unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'d68'},
   {key:'smkD810',label:'換框機 ↔ UVQ 直達（回程）', unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'d810'},
+  // ── 設備數量（機台/AGV 1–9；緩衝容量 ≥1）──
+  {key:'abfCzN',     label:'CZ 機台數',        unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'abf', section:'equip'},
+  {key:'abfPressN',  label:'ABF壓機 機台數',   unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'abf', section:'equip'},
+  {key:'abfChangerN',label:'換框機 機台數',    unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'abf', section:'equip'},
+  {key:'abfG1Agv',   label:'AGV G1(CLN→CZ)',  unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'abf', section:'equip'},
+  {key:'abfG2Agv',   label:'AGV G2(CZ→壓機)', unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'abf', section:'equip'},
+  {key:'abfG3Agv',   label:'AGV G3(壓機→換框)',unit:'台', min:1, max:9,  step:1, type:'int', apply:'resim', line:'abf', section:'equip'},
+  {key:'abfAnnBuf',  label:'Annealing 容量',   unit:'框',  min:1, max:99, step:1, type:'int', apply:'resim', line:'abf', section:'equip'},
+  {key:'abfBakBuf',  label:'Baking 容量',      unit:'框',  min:1, max:99, step:1, type:'int', apply:'resim', line:'abf', section:'equip'},
+  {key:'abfPostBuf', label:'Postcure 容量',    unit:'框',  min:1, max:99, step:1, type:'int', apply:'resim', line:'abf', section:'equip'},
+  {key:'smkCzN',     label:'CZ 機台數',        unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkPressN',  label:'SMK壓機 機台數',   unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkExpN',    label:'曝光機 機台數',    unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkDevN',    label:'顯影機 機台數',    unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkUvqN',    label:'UVQ 機台數',       unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkChangerN',label:'換框機 機台數',    unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkG1Agv',   label:'AGV G1(CLN→CZ)',  unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkG2Agv',   label:'AGV G2(CZ→壓機)', unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkG3Agv',   label:'AGV G3(壓機→曝光)',unit:'台', min:1, max:9,  step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkG4Agv',   label:'AGV G4(曝光→顯影)',unit:'台', min:1, max:9,  step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkG5Agv',   label:'AGV G5(顯影→UVQ)',unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkG6Agv',   label:'AGV G6(UVQ→換框)',unit:'台',  min:1, max:9,  step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkAnnBuf',  label:'Annealing 容量',   unit:'框',  min:1, max:99, step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkBakBuf',  label:'Baking 容量',      unit:'框',  min:1, max:99, step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkSoftBuf', label:'SoftBaking 容量',  unit:'框',  min:1, max:99, step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
+  {key:'smkPostBuf', label:'Postcure 容量',    unit:'框',  min:1, max:99, step:1, type:'int', apply:'resim', line:'smk', section:'equip'},
 ];
 const TG_META={key:'tg',label:'🎯 目標產量',unit:'片',min:1,step:100,type:'int',apply:'live',line:'both',section:'goal'};
 const ALL_META=PARAM_META.concat([TG_META]);
 const PARAM_BY_KEY=Object.fromEntries(ALL_META.map(m=>[m.key,m]));
 const SECTIONS=[
+  {id:'equip',    title:'🏭 設備數量',     tag:'resim'},
   {id:'proc',     title:'⏱ 製程時間',     tag:'resim'},
   {id:'pickdrop', title:'🤖 取放料時間',   tag:'resim'},
   {id:'route',    title:'🛣 路段行走時間', tag:'resim', map:true},
