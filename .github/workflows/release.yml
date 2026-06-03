@@ -35,7 +35,24 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.event.inputs.tag || github.ref_name }}
-          releaseName: "製程AGV模擬 ${{ github.event.inputs.tag || github.ref_name }}"
-          releaseBody: "Windows 桌面版安裝檔（NSIS .exe / .msi）。使用系統 WebView2，離線可用。"
+          releaseName: "製程 AGV 模擬系統 ${{ github.event.inputs.tag || github.ref_name }}"
           releaseDraft: false
           prerelease: false
+          releaseBody: |
+            ## 製程 AGV 模擬系統 — 桌面版（Windows）
+
+            使用系統 WebView2，**可離線使用**。下方 **Assets** 內含安裝檔。
+
+            ### 安裝
+            1. 下載 `ProcessAGVSim_*_x64-setup.exe`（NSIS）或 `*.msi`。
+            2. 執行並依指示安裝，從開始選單啟動「製程 AGV 模擬系統」。
+            3. 若提示缺 WebView2，安裝 Microsoft Edge WebView2 Runtime（Win10/11 多已內建）。
+
+            ### 操作說明
+            1. **選擇製程線**：啟動後於首頁選 ABF / SMK / 自訂線。
+            2. **播放控制**：▶ 播放、1× / 2× / 5× / 10× 倍速、⏩ 立即結果（快轉至達標）、↺ 重置、⇄ 切換線。
+            3. **參數調整**：右上「⚙ 參數」開面板 → 改製程時間 / 路段行走 / 設備數量（機台、AGV、烤箱容量）等 → 按「套用」重新模擬；可存成情境、匯入匯出。
+            4. **產能觀察**：滑鼠移到站別看每小時與平均 UPH；底部為 UPH 折線圖；右側即時統計與瓶頸警示。
+            5. **AGV 稼動看板**：「📊 看板」檢視每台 AGV 的移動 / 取放 / 閒置時間與稼動率。
+            6. **流程圖縮放**：滾輪縮放、拖曳平移，「⤢ 重置視角」歸位。
+            7. **自訂製程線**：選擇畫面「＋ 新增製程線」用精靈建立（站別→時間→每組 AGV→驗證/乾跑→儲存）；自訂線可編輯 / 刪除 / 匯出 JSON。

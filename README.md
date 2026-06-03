@@ -26,6 +26,16 @@ npx serve ui
 
 以 [Tauri v2](https://v2.tauri.app/) 打包成 Windows 桌面應用（使用系統 WebView2，安裝檔小、可離線）。
 
+### 下載安裝（一般使用者）
+
+直接到 **[Releases](https://github.com/wkltueserc20/Process-Simulate/releases)** 下載最新版安裝檔：
+- `ProcessAGVSim_x.x.x_x64-setup.exe`（NSIS）或 `*.msi`
+- 執行安裝 → 開始選單啟動「製程 AGV 模擬系統」。每個 release 內含操作說明。
+
+> 發版方式：推送 `v*` 標籤（如 `git tag v0.1.1 && git push origin v0.1.1`），GitHub Actions 會自動建置並發佈安裝檔。
+
+### 自行建置（開發者）
+
 **前置需求**：Rust（rustup）、Windows 為 MSVC build tools 與 WebView2 runtime（Win10/11 多已內建）、Tauri CLI。
 
 ```powershell
