@@ -1,0 +1,29 @@
+{
+  "line": "abf",
+  "params": {
+    "abfBt": 24,
+    "clnTime": 360,
+    "czTime": 360,
+    "pressTime": 360,
+    "sc": 2150,
+    "bt": 12,
+    "sa": 9,
+    "tg": 4000,
+    "ww": 1,
+    "wd": 2,
+    "pickTime": 30,
+    "dropTime": 30,
+    "bufPickTime": 30,
+    "bufDropTime": 30,
+    "t01": 149,
+    "t12": 210,
+    "t02": 180,
+    "t23": 90,
+    "t34": 120,
+    "t45": 240,
+    "t24": 120,
+    "t56": 180,
+    "t46": 220,
+    "changerTime": 360
+  }
+}

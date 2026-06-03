@@ -1,0 +1,8 @@
+# Agent / IDE 工具暫存目錄
+.agent/
+.claude/
+.codex/
+
+# OS
+Thumbs.db
+.DS_Store

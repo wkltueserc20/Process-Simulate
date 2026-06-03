@@ -1,0 +1,2388 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>欣興電子 ABF+SMK 製程 AGV 模擬系統</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#eef2f8;--surface:#ffffff;--card:#f3f6fb;--border:#cdd8e8;--text:#18233a;--dim:#5a6a85;--accent:#0a6ebd;--green:#00922f;--yellow:#b8860b;--orange:#d9600a;--red:#cc1111;--abf:#1565c0;--smk:#d9600a;
+  --g1:#0277bd;--g2:#00853a;--g3:#7b2fbf;}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+/* ── 兩列式 header：上=資訊列 下=控制列 ── */
+#hdr{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 14px;display:flex;align-items:center;gap:13px;flex-shrink:0}
+#logo-hdr{height:50px;width:auto;flex-shrink:0}
+#hdr-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+#hdr-info{display:flex;align-items:center;gap:16px}
+#hdr-ctrl{display:flex;align-items:center;gap:8px}
+#ttl{font-size:15px;font-weight:700;color:var(--accent);white-space:nowrap}
+#clk{font-family:'Courier New',monospace;font-size:22px;color:var(--yellow);min-width:96px}
+.cg{display:flex;gap:4px;align-items:center;flex-shrink:0}
+.hdr-sep{width:1px;height:24px;background:var(--border);flex-shrink:0;margin:0 2px}
+button{background:var(--card);border:1px solid var(--border);color:var(--text);padding:5px 11px;border-radius:4px;cursor:pointer;font-size:12px;transition:all .15s}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.act{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.rst:hover{border-color:var(--red);color:var(--red)}
+/* segmented speed control */
+.seg{display:flex;flex-shrink:0}
+.seg button{border-radius:0;padding:5px 10px;border-right-width:0}
+.seg button:first-child{border-radius:4px 0 0 4px}
+.seg button:last-child{border-radius:0 4px 4px 0;border-right-width:1px}
+/* primary action */
+button.pri{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+button.pri:hover{color:#fff;filter:brightness(1.08)}
+/* progress + 完成片數（資訊列右側） */
+#prog{flex:1;display:flex;align-items:center;gap:10px;min-width:150px}
+#pbl{font-size:14px;font-weight:600;white-space:nowrap;color:var(--text);font-variant-numeric:tabular-nums}
+#pbw{flex:1;background:var(--card);border:1px solid var(--border);border-radius:4px;height:16px;position:relative;overflow:hidden;min-width:80px}
+#pb{height:100%;background:linear-gradient(90deg,var(--abf),var(--accent));width:0%;transition:width .4s}
+#main{display:flex;flex:1;overflow:hidden}
+#fw{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#fsvg{width:100%;flex:1;min-height:0}
+#bot-toggle{display:flex;align-items:center;gap:6px;padding:3px 10px;background:var(--surface);border-top:1px solid var(--border);cursor:pointer;flex-shrink:0;user-select:none;font-size:11px;color:var(--dim);transition:color .15s}
+#bot-toggle:hover{color:var(--accent)}
+#bot-toggle .arrow{transition:transform .25s;font-size:10px}
+#bot-toggle.collapsed .arrow{transform:rotate(180deg)}
+#bot{display:flex;height:155px;border-top:1px solid var(--border);flex-shrink:0;overflow:hidden;transition:height .25s ease}
+#bot.collapsed{height:0;border-top:none}
+#cw{flex:1;padding:6px}
+#sp{width:255px;padding:10px;border-left:1px solid var(--border);display:flex;flex-direction:column;gap:6px;overflow-y:auto;font-size:12px}
+.sr{display:flex;justify-content:space-between;align-items:center}
+.sl{font-size:11px;color:var(--dim)}
+.sv{font-size:13px;font-weight:600}
+.sv.abf{color:var(--abf)}.sv.smk{color:var(--smk)}.sv.grn{color:var(--green)}.sv.red{color:var(--red)}
+.bb{background:var(--red);color:#fff;font-size:10px;padding:1px 5px;border-radius:3px}
+.nob{color:var(--green);font-size:11px}
+#sb{width:0;overflow:hidden;transition:width .3s;border-left:1px solid var(--border);background:var(--surface);flex-shrink:0}
+#sb.open{width:300px}
+#sbi{width:300px;display:flex;flex-direction:column;height:100%}
+#sb-scroll{flex:1;overflow-y:auto;padding:12px 12px 6px}
+.pg{margin-bottom:9px}
+.pg label{display:block;font-size:11px;color:var(--dim);margin-bottom:3px}
+.pg input{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:4px;font-size:12px}
+/* stepper input group */
+.stp{display:flex;align-items:stretch;gap:0}
+.stp input{border-radius:0;text-align:center;min-height:32px}
+.stp button{min-width:34px;min-height:32px;padding:0;font-size:16px;line-height:1;border-radius:0;background:var(--card)}
+.stp button:first-child{border-radius:4px 0 0 4px;border-right:none}
+.stp button:last-child{border-radius:0 4px 4px 0;border-left:none}
+.pg .unit{font-size:10px;color:var(--dim);margin-left:4px}
+.pg.invalid input{border-color:var(--red)}
+.pg .err{display:none;font-size:10px;color:var(--red);margin-top:2px}
+.pg.invalid .err{display:block}
+/* live / resim tag */
+.ptag{font-size:9px;font-weight:600;padding:0 4px;border-radius:3px;margin-left:5px;vertical-align:middle}
+.ptag.live{background:#dff3d0;color:#2f7d18;border:1px solid #9fd182}
+.ptag.resim{background:#efe3f8;color:#7b2fbf;border:1px solid #d3b8e8}
+/* accordion section */
+.sec{border:1px solid var(--border);border-radius:6px;margin-bottom:8px;overflow:hidden}
+.sec-h{display:flex;align-items:center;gap:6px;padding:7px 9px;cursor:pointer;user-select:none;background:var(--card);font-size:12px;font-weight:600}
+.sec-h:hover{color:var(--accent)}
+.sec-h .arr{margin-left:auto;font-size:10px;transition:transform .2s}
+.sec.closed .sec-h .arr{transform:rotate(-90deg)}
+.sec-b{max-height:1600px;overflow:hidden;transition:max-height .25s ease;padding:9px}
+.sec.closed .sec-b{max-height:0;padding-top:0;padding-bottom:0}
+.sec-cnt{font-size:9px;color:var(--dim);font-weight:400}
+/* persistent header block */
+.phd{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:9px;margin-bottom:8px}
+.phd select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:4px;font-size:12px}
+/* sticky footer */
+#sb-ft{border-top:1px solid var(--border);background:var(--surface);padding:8px 12px;flex-shrink:0;display:flex;flex-direction:column;gap:6px}
+#dirty-ind{font-size:10px;min-height:13px;color:var(--yellow)}
+#dirty-ind.clean{visibility:hidden}
+#dirty-ind.live{color:#2f7d18}
+#sb-ft .ftrow{display:flex;gap:6px;align-items:center}
+#btn-apply{flex:1;background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+#btn-apply.hot{box-shadow:0 0 0 2px var(--accent)}
+#btn-apply:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+.ftrow label.chk{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap}
+#sb-ft .mini{font-size:11px;padding:4px 6px}
+#sbttl{font-size:13px;font-weight:600;color:var(--accent)}
+/* route mini-map */
+#route-map{width:100%;height:74px;margin-bottom:8px}
+#route-map .rseg{stroke:#3a5a80;stroke-width:2;cursor:pointer}
+#route-map .rseg.hot{stroke:var(--accent);stroke-width:3.5}
+#route-map text{fill:#8090b0;font-size:8px;text-anchor:middle}
+.pg.hot input{border-color:var(--accent)}
+/* comparison card */
+#cmp-card{position:fixed;right:18px;bottom:18px;z-index:120;background:var(--surface);border:1px solid var(--accent);border-radius:8px;padding:12px 16px;font-size:12px;min-width:210px;box-shadow:0 4px 20px #000a;opacity:0;transform:translateY(8px);transition:opacity .3s,transform .3s;pointer-events:none}
+#cmp-card.show{opacity:1;transform:translateY(0);pointer-events:auto}
+#cmp-card h4{font-size:12px;color:var(--accent);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
+#cmp-card .cmpx{cursor:pointer;color:var(--dim);font-size:14px}
+#cmp-card .crow{display:flex;justify-content:space-between;gap:14px;margin:3px 0}
+#cmp-card .up{color:var(--green)}#cmp-card .dn{color:var(--red)}#cmp-card .eq{color:var(--dim)}
+.track{stroke:#2a3a5c;stroke-width:2.5;fill:none}
+.track-ret{stroke:#1a2a4c;stroke-width:1.5;fill:none;stroke-dasharray:5 4}
+.bnk{stroke:#d50000;stroke-dasharray:8 4;animation:pls .9s infinite}
+@keyframes pls{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes mproc{0%,100%{opacity:1;filter:brightness(1)}50%{opacity:.75;filter:brightness(1.4)}}
+.slb{fill:#18233a;font-size:11px;text-anchor:middle;dominant-baseline:middle}
+.llb{fill:#2a3550;font-size:16px;font-weight:700}
+.llb2{fill:var(--dim);font-size:11px}
+#ov{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border:2px solid var(--green);border-radius:8px;padding:24px 32px;text-align:center;z-index:100}
+#ov.show{display:block}
+#ov h2{color:var(--green);margin-bottom:8px}
+.agv-proc{animation:mproc 1s infinite}
+/* station UPH tooltip */
+#stn-tip{position:fixed;z-index:300;display:none;background:#1b2740;color:#eaf0fa;border:1px solid var(--accent);border-radius:7px;padding:8px 11px;font-size:12px;line-height:1.5;box-shadow:0 6px 22px #0007;pointer-events:none;min-width:130px}
+#stn-tip .tt-h{font-weight:700;color:#9ecbff;margin-bottom:4px;border-bottom:1px solid #33456b;padding-bottom:3px}
+#stn-tip .tt-r{display:flex;justify-content:space-between;gap:16px}
+#stn-tip .tt-now{color:#ffd54a}
+#stn-tip .tt-avg{margin-top:4px;border-top:1px solid #33456b;padding-top:3px;font-weight:700}
+#stn-tip .tt-dim{color:#8fa0bf}
+/* AGV utilization board overlay */
+#agv-board{display:none;position:fixed;inset:0;z-index:250;background:#0b1322cc;align-items:center;justify-content:center}
+#agv-board.show{display:flex}
+#agv-board .abx{background:var(--surface);border:2px solid var(--accent);border-radius:10px;padding:18px 22px;max-height:88vh;overflow:auto;box-shadow:0 8px 40px #000a;min-width:520px}
+#agv-board h3{color:var(--accent);font-size:16px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;gap:20px}
+#agv-board .abclose{cursor:pointer;color:var(--dim);font-size:20px;line-height:1}
+#agv-board .absub{color:var(--dim);font-size:11px;margin-bottom:12px}
+#agv-board table{border-collapse:collapse;width:100%;font-size:12px}
+#agv-board th,#agv-board td{padding:5px 9px;text-align:right;border-bottom:1px solid var(--border)}
+#agv-board th:first-child,#agv-board td:first-child{text-align:left}
+#agv-board th{color:var(--dim);font-weight:600;font-size:11px}
+#agv-board tr.tot td{font-weight:700;border-top:2px solid var(--accent);border-bottom:none}
+#agv-board .ub{display:inline-block;vertical-align:middle;width:70px;height:9px;background:var(--card);border-radius:5px;overflow:hidden;margin-left:6px;border:1px solid var(--border)}
+#agv-board .ub>i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--accent))}
+</style>
+</head>
+<body>
+<div id="hdr">
+  <img id="logo-hdr" alt="Ching Tech 擎添工業">
+  <div id="hdr-main">
+    <!-- 上：資訊列 -->
+    <div id="hdr-info">
+      <div id="ttl">欣興電子 AGV 模擬</div>
+      <div id="clk">00:00:00</div>
+      <div id="prog">
+        <div id="pbl">完成 0 / 4000 片</div>
+        <div id="pbw"><div id="pb"></div></div>
+      </div>
+    </div>
+    <!-- 下：控制列 -->
+    <div id="hdr-ctrl">
+      <div class="cg">
+        <button id="bplay" onclick="togglePlay()">▶ 播放</button>
+        <div class="seg">
+          <button id="b1x" class="act" onclick="setSpeed(1)">1×</button>
+          <button id="b2x" onclick="setSpeed(2)">2×</button>
+          <button id="b5x" onclick="setSpeed(5)">5×</button>
+          <button id="b10x" onclick="setSpeed(10)">10×</button>
+        </div>
+        <button id="btn-fast" class="pri" onclick="fastForward()">⏩ 立即結果</button>
+      </div>
+      <div class="hdr-sep"></div>
+      <div class="cg">
+        <button class="rst" onclick="resetSim()">↺ 重置</button>
+        <button class="rst" onclick="backToSelect()">⇄ 切換線</button>
+      </div>
+      <div class="hdr-sep"></div>
+      <div class="cg">
+        <button id="btn-view" onclick="toggleView()">▤ 精簡</button>
+        <button onclick="toggleAgvBoard()">📊 看板</button>
+        <button onclick="resetCamera()">⤢ 視角</button>
+        <button onclick="toggleSB()">⚙ 參數</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="main">
+ <div id="fw">
+  <svg id="fsvg" viewBox="0 0 1400 870" preserveAspectRatio="xMidYMid meet">
+    <text id="abf-hdr" x="10" y="22" class="llb">ABF 製程線</text>
+    <text id="abf-hdr2" x="10" y="35" class="llb2">● 滿框(綠)  ○ 空框(橘)  ▶ 加工中(藍)  ◌ AGV預訂(淡綠)</text>
+    <text id="smk-hdr" x="10" y="218" class="llb">SMK 製程線</text>
+    <text id="smk-hdr2" x="10" y="229" class="llb2">Cycle: 35:50 ｜ 9 AGV ｜ 12 pcs/cycle</text>
+    <g id="abf-tracks"></g><g id="smk-tracks"></g>
+    <g id="abf-stations"></g><g id="smk-stations"></g>
+    <g id="abf-agvs"></g><g id="smk-agvs"></g>
+  </svg>
+  <div id="bot-toggle" onclick="toggleBot()">
+    <span class="arrow">▲</span>
+    <span id="bot-toggle-lbl">統計圖表</span>
+    <span id="bot-mini" style="margin-left:8px;color:var(--accent);font-size:11px;font-weight:600"></span>
+  </div>
+  <div id="bot">
+    <div id="cw"><canvas id="uc"></canvas></div>
+    <div id="sp">
+      <div style="font-size:12px;font-weight:600;color:var(--accent)">即時統計</div>
+      <div id="row-auph" class="sr"><span class="sl">ABF UPH</span><span class="sv abf" id="s-auph">—</span></div>
+      <div id="row-suph" class="sr"><span class="sl">SMK UPH</span><span class="sv smk" id="s-suph">—</span></div>
+      <div class="sr"><span class="sl">已完成</span><span class="sv grn" id="s-done">0 片</span></div>
+      <div class="sr"><span class="sl">目標</span><span class="sv" id="s-tgt">4000 片</span></div>
+      <div class="sr"><span class="sl">預估完成</span><span class="sv" id="s-eta">—</span></div>
+      <div id="bnk-section"><hr style="border-color:var(--border)">
+      <div style="font-size:11px;font-weight:600;color:var(--red)">瓶頸警示（PORT 堆積）</div>
+      <div id="bnklist"><div class="nob">目前無瓶頸</div></div></div>
+    </div>
+  </div>
+ </div>
+ <div id="sb"><div id="sbi">
+   <div id="sb-scroll"></div>
+   <div id="sb-ft"></div>
+ </div></div>
+</div>
+<div id="cmp-card"></div>
+<div id="stn-tip"></div>
+<div id="agv-board" onclick="if(event.target===this)toggleAgvBoard()">
+  <div class="abx">
+    <h3><span>📊 AGV 稼動看板</span><span class="abclose" onclick="toggleAgvBoard()">✕</span></h3>
+    <div class="absub">動作 = 移動 + 取放　｜　稼動率 = 動作 ÷（動作 + 閒置）</div>
+    <div id="agv-board-body"></div>
+  </div>
+</div>
+<input id="import-file" type="file" accept=".json" style="display:none" onchange="importParams(event)">
+<div id="ov"><h2 id="ovh">模擬完成</h2><p id="ovm"></p>
+  <button onclick="document.getElementById('ov').classList.remove('show')" style="margin-top:12px">關閉</button>
+</div>
+
+<div id="sel-ov" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#eef2f8;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;gap:10px">
+  <img id="logo-sel" alt="Ching Tech 擎添工業" style="height:120px;margin-bottom:10px">
+  <div style="font-size:24px;font-weight:700;color:var(--accent)">欣興電子 AGV 模擬系統</div>
+  <div style="color:var(--dim);font-size:14px;margin-bottom:24px">選擇要模擬的製程線</div>
+  <div style="display:flex;gap:24px">
+    <button onclick="selectLine('abf')" style="width:220px;height:110px;font-size:18px;font-weight:700;background:#eaf2fc;border:2px solid var(--abf);color:var(--abf);border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 8px #0001">
+      ABF 製程線
+      <span style="font-size:11px;color:#5a6a85;font-weight:400">CLN → CZ → ABF壓機 → Postcure</span>
+    </button>
+    <button onclick="selectLine('smk')" style="width:220px;height:110px;font-size:18px;font-weight:700;background:#fdf0e6;border:2px solid var(--smk);color:var(--smk);border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 8px #0001">
+      SMK 製程線
+      <span style="font-size:11px;color:#5a6a85;font-weight:400">CLN → CZ → 壓機 → 曝光 → 顯影 → UVQ → 換框機</span>
+    </button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// DEFAULTS & CONFIG
+// ══════════════════════════════════════════════════════════════
+const DEF = {
+  clnTime:360, czTime:360, pressTime:360,
+  abfBt:1,                            // ABF 每框片數
+  tg:4000,                            // 目標產量（兩線共用）
+  // AGV 取/放料時間（transfer/changer 站用）
+  pickTime:0, dropTime:0,
+  // 緩衝站（Annealing/Baking/Postcure）取/放料時間
+  bufPickTime:0, bufDropTime:0,
+  // ABF 各路段行走時間（秒）—— 每對站點獨立設定
+  t01:250, t12:290, t02:540,   // CLN↔Annealing, Annealing↔CZ, CLN↔CZ
+  t23:170, t34:200, t45:320, t24:370, // CZ↔Baking, Baking↔ABF壓機, ABF壓機↔Postcure, CZ↔ABF壓機
+  t56:200, t46:520,                   // Postcure↔換框機, ABF壓機↔換框機
+  changerTime:360,                    // 換框機 拿料時間（秒）
+  // ── SMK 製程線參數（ABF 式 slot/PORT 引擎）──
+  smkCln:360, smkCz:360, smkPress:360, smkExp:360, smkDev:360, smkUvq:360, smkChanger:360, // 各站處理時間
+  smkBt:1,                            // SMK 每框片數
+  smkPick:0, smkDrop:0, smkBufPick:0, smkBufDrop:0, // 取/放料時間
+  // SMK 路段行走時間（10 段相鄰站，秒）—— 每段獨立設定
+  smkR0:250, smkR1:290, smkR2:170, smkR3:200, smkR4:200,   // CLN↔Ann, Ann↔CZ, CZ↔Bak, Bak↔壓機, 壓機↔曝光
+  smkR5:200, smkR6:250, smkR7:200, smkR8:200, smkR9:200,   // 曝光↔顯影, 顯影↔SoftBak, SoftBak↔UVQ, UVQ↔Post, Post↔換框
+  // SMK 回程直達路段（空框跳過中間緩衝站，秒）
+  smkD02:540, smkD24:370, smkD68:450, smkD810:400          // CZ↔CLN, 壓機↔CZ, UVQ↔顯影, 換框機↔UVQ
+};
+let P = {...DEF};
+
+// ABF Station definitions
+// xi = 主軌道位置(0-6)，sub = 同位置第幾台(0起)
+// Indices: 0=CLN,1=Annealing,2=CZ_1,3=Baking,4=ABF壓機_1,5=Postcure,6=換框機
+//          7=CZ_2, 8=ABF壓機_2, 9=ABF壓機_3, 10=ABF壓機_4
+const ABF_DEFS = [
+  {name:'CLN',       mtype:'refill',   xi:0, sub:0},
+  {name:'Annealing', buf:16, holdTime:10, xi:1, sub:0},
+  {name:'CZ_1',      mtype:'transfer', xi:2, sub:0},
+  {name:'Baking',    buf:6,            xi:3, sub:0},
+  {name:'ABF壓機_1', mtype:'transfer', xi:4, sub:0},
+  {name:'Postcure',  buf:6,            xi:5, sub:0},
+  {name:'換框機',    mtype:'changer',  xi:6, sub:0},
+  {name:'CZ_2',      mtype:'transfer', xi:2, sub:1},
+  {name:'ABF壓機_2', mtype:'transfer', xi:4, sub:1},
+  {name:'ABF壓機_3', mtype:'transfer', xi:4, sub:2},
+  {name:'ABF壓機_4', mtype:'transfer', xi:4, sub:3},
+  {name:'換框機_2',  mtype:'changer',  xi:6, sub:1},
+];
+const CZ_INDICES      = [2, 7];
+const PRESS_INDICES   = [4, 8, 9, 10];
+const CHANGER_INDICES = [6, 11];
+const SUB_SPACING     = 185; // 同位置機台間的垂直間距（px）
+
+// ABF AGV — 三組專用 AGV
+// Group 1 (A1, A2): CLN ↔ Annealing ↔ CZ（含空框回程）
+// Group 2 (A3, A4): CZ ↔ Baking ↔ ABF壓機（含空框回程）
+// Group 3 (A5, A6): ABF壓機 ↔ Postcure ↔ 換框機（含空框回程）
+const ABF_AGV_INITS = [
+  {id:'A1', pos:0, stag:0,   grp:1},  // 起始於 CLN
+  {id:'A2', pos:1, stag:30,  grp:1},  // 起始於 Annealing
+  {id:'A3', pos:2, stag:60,  grp:2},  // 起始於 CZ
+  {id:'A4', pos:4, stag:90,  grp:2},  // 起始於 ABF壓機
+  {id:'A5', pos:6,  stag:120, grp:3},  // 起始於 換框機_1
+  {id:'A6', pos:5,  stag:150, grp:3},  // 起始於 Postcure
+  {id:'A7', pos:11, stag:180, grp:3},  // 起始於 換框機_2
+];
+
+// 站點行走時間查表（每對獨立，不累加）—— ABF route
+// 同一 xi（同一物理位置）距離=0
+function routeABF(i,j){
+  const xi = abfSt[i]?.xi ?? i;
+  const xj = abfSt[j]?.xi ?? j;
+  if(xi===xj) return 0;
+  const a=Math.min(xi,xj), b=Math.max(xi,xj);
+  const direct={
+    '0_1':P.t01, '1_2':P.t12, '0_2':P.t02,
+    '2_3':P.t23, '3_4':P.t34, '4_5':P.t45, '2_4':P.t24,
+    '5_6':P.t56, '4_6':P.t46
+  };
+  const key=`${a}_${b}`;
+  if(key in direct) return direct[key];
+  const cum=[0,P.t01,P.t01+P.t12,P.t01+P.t12+P.t23,P.t01+P.t12+P.t23+P.t34,
+             P.t01+P.t12+P.t23+P.t34+P.t45,P.t01+P.t12+P.t23+P.t34+P.t45+P.t56];
+  return Math.abs(cum[xi]-cum[xj]);
+}
+// 行走時間 —— 透過當前 line config 分派（一般化接點，SMK 後續加入自己的 route）
+function tABF(i,j){ return LC.route(i,j); }
+
+// ══════════════════════════════════════════════════════════════
+// LINE CONFIG —— 一般化引擎接點（ABF 先行，SMK 由後續 change 加入）
+// 每條線提供：站別定義 defs、AGV 起始 agvInits、路段 route、群組任務 groupTasks
+// ══════════════════════════════════════════════════════════════
+const LINES = {
+  abf: {
+    id:'abf',
+    defs: ABF_DEFS,
+    agvInits: ABF_AGV_INITS,
+    route: routeABF,
+    procTime: procTimeABF,
+    // 群組以資料描述：src(來源集)→mid(緩衝, null=2站直送)→dst(目的集)；priA/priB 任務優先度
+    // midSpace 複製舊碼三組不一致的緩衝空間檢查（'pending'含暫存/'avail'僅fullAvail/'none'不檢查）
+    groups: [
+      {grp:1, src:[0],        mid:1,  dst:[2,7],      priA:7, priB:9, midSpace:'pending'},
+      {grp:2, src:[2,7],      mid:3,  dst:[4,8,9,10], priA:8, priB:9, midSpace:'avail'},
+      {grp:3, src:[4,8,9,10], mid:5,  dst:[6,11],     priA:9, priB:8, midSpace:'none'},
+    ],
+    layout:{ type:'row', xiCount:7, zones:[[0,2],[2,4],[4,6]], agvLbls:['A1,A2','A3,A4','A5,A6,A7'], viewBox:'0 0 1400 870', legendY:838, header:'ABF 製程線',
+      simple:{ rows:[[0,1,2,3,4,5,6]], rowY:[280], rowTrack:[[160,182]], viewBox:'0 0 1400 460', legendY:430 } },
+  }
+};
+let LC = LINES.abf; // 當前作用中的 line config
+
+// ── 通用群組任務產生器（取代 getGroup1/2/3Tasks，支援 2 站直送）──
+// 站別型態判斷（用於來源出滿框 / 來源收空框 / 目的入料 / 目的退空框）
+function srcOutFull(s){ return s.mtype==='refill' ? (s.s_out && !s.s_out_res) : (s.out_full && !s.out_full_hold && !s.out_full_res); }
+function srcRecvFree(s){ return s.mtype==='refill' ? (s.s_recv===0 && !s.s_recv_res) : (s.out_recv===0 && !s.out_recv_res); }
+function dstInFree(s){ return s.in_full===0 && !s.in_full_res; }
+function dstRetAvail(s){ return s.in_ret && !s.in_ret_hold && !s.in_ret_res; }
+function midHasSpace(buf, mode){
+  if(mode==='none') return true;
+  if(mode==='avail') return buf.fullAvail < buf.buf;
+  return buf.fullAvail + buf.pendingFrames.length < buf.buf; // 'pending'（預設）
+}
+function genGroupTasks(g){
+  const s = abfSt; // 當前作用線狀態
+  const T = [];
+  if(g.mid!=null){
+    const buf = s[g.mid];
+    // A：各來源出滿框 → 緩衝（緩衝有空間）
+    for(const si of g.src)
+      if(srcOutFull(s[si]) && midHasSpace(buf, g.midSpace))
+        T.push({f:si, t:g.mid, c:'full', pri:g.priA});
+    // B：緩衝 → 任一空的目的入料
+    for(const di of g.dst)
+      if(buf.fullAvail > buf.fullReserved && dstInFree(s[di]))
+        T.push({f:g.mid, t:di, c:'full', pri:g.priB});
+    // C：各目的退空框 → 任一來源收空框（取第一個）
+    for(const di of g.dst)
+      if(dstRetAvail(s[di]))
+        for(const si of g.src)
+          if(srcRecvFree(s[si])){ T.push({f:di, t:si, c:'empty', pri:10}); break; }
+  } else {
+    // 2 站直送（無 buffer）：來源出滿框 → 任一空目的；目的退空框 → 來源收空框
+    for(const si of g.src)
+      if(srcOutFull(s[si]))
+        for(const di of g.dst)
+          if(dstInFree(s[di])){ T.push({f:si, t:di, c:'full', pri:g.priA}); break; }
+    for(const di of g.dst)
+      if(dstRetAvail(s[di]))
+        for(const si of g.src)
+          if(srcRecvFree(s[si])){ T.push({f:di, t:si, c:'empty', pri:10}); break; }
+  }
+  return T;
+}
+
+// ══════════════════════════════════════════════════════════════
+// SMK line config（ABF 式 slot/PORT 引擎；線性 11 站，6 組 A1–A11）
+// 站別型態：CLN=refill；Annealing/Baking/SoftBaking/Postcure=buffer；
+//          CZ/SMK壓機/曝光機/顯影機/UVQ=transfer；換框機=changer
+// ══════════════════════════════════════════════════════════════
+const SMK_DEFS = [
+  {name:'CLN',        mtype:'refill',   xi:0,  sub:0},   // 0
+  {name:'Annealing',  buf:16, holdTime:10, xi:1, sub:0}, // 1
+  {name:'CZ_1',       mtype:'transfer', xi:2,  sub:0},   // 2
+  {name:'Baking',     buf:6,            xi:3,  sub:0},   // 3
+  {name:'SMK壓機_1',  mtype:'transfer', xi:4,  sub:0},   // 4
+  {name:'曝光機',     mtype:'transfer', xi:5,  sub:0},   // 5
+  {name:'顯影機_1',   mtype:'transfer', xi:6,  sub:0},   // 6
+  {name:'SoftBaking', buf:6,            xi:7,  sub:0},   // 7
+  {name:'UVQ_1',      mtype:'transfer', xi:8,  sub:0},   // 8
+  {name:'Postcure',   buf:6,            xi:9,  sub:0},   // 9
+  {name:'換框機_1',   mtype:'changer',  xi:10, sub:0},   // 10
+  // 多機台（同 xi 不同 sub，垂直堆疊）
+  {name:'CZ_2',       mtype:'transfer', xi:2,  sub:1},   // 11
+  {name:'SMK壓機_2',  mtype:'transfer', xi:4,  sub:1},   // 12
+  {name:'SMK壓機_3',  mtype:'transfer', xi:4,  sub:2},   // 13
+  {name:'SMK壓機_4',  mtype:'transfer', xi:4,  sub:3},   // 14
+  {name:'顯影機_2',   mtype:'transfer', xi:6,  sub:1},   // 15
+  {name:'UVQ_2',      mtype:'transfer', xi:8,  sub:1},   // 16
+  {name:'換框機_2',   mtype:'changer',  xi:10, sub:1},   // 17
+];
+// 6 組專用 AGV（A1–A11）
+const SMK_AGV_INITS = [
+  {id:'A1', pos:0,  stag:0,   grp:1},  {id:'A2', pos:1,  stag:30,  grp:1}, // G1 CLN→Ann→CZ
+  {id:'A3', pos:2,  stag:60,  grp:2},  {id:'A4', pos:4,  stag:90,  grp:2}, // G2 CZ→Bak→壓機
+  {id:'A5', pos:4,  stag:120, grp:3},                                       // G3 壓機→曝光（直送）
+  {id:'A6', pos:5,  stag:150, grp:4},                                       // G4 曝光→顯影（直送）
+  {id:'A7', pos:6,  stag:180, grp:5},  {id:'A8', pos:7,  stag:210, grp:5}, // G5 顯影→SoftBak→UVQ
+  {id:'A9', pos:8,  stag:240, grp:6},  {id:'A10',pos:9,  stag:270, grp:6}, {id:'A11',pos:10, stag:300, grp:6}, // G6 UVQ→Post→換框
+];
+// SMK 路段行走時間：線性 10 段，距離 = 起訖站之間各段時間總和
+const SMK_ROUTE_KEYS=['smkR0','smkR1','smkR2','smkR3','smkR4','smkR5','smkR6','smkR7','smkR8','smkR9'];
+function routeSMK(i,j){
+  const xi = abfSt[i]?.xi ?? i;
+  const xj = abfSt[j]?.xi ?? j;
+  if(xi===xj) return 0;
+  const a=Math.min(xi,xj), b=Math.max(xi,xj);
+  // 回程直達（跳過中間緩衝站，獨立設定）
+  const direct={'0_2':P.smkD02,'2_4':P.smkD24,'6_8':P.smkD68,'8_10':P.smkD810};
+  const dk=`${a}_${b}`;
+  if(dk in direct) return direct[dk];
+  let d=0; for(let k=a;k<b;k++) d+=(P[SMK_ROUTE_KEYS[k]]||0); // 段 k 連接 xi=k 與 k+1
+  return d;
+}
+// 各站處理時間解析（依製程線 + 站別）
+function procTimeABF(d){
+  if(d.mtype==='refill')  return P.clnTime;
+  if(d.mtype==='changer') return P.changerTime;
+  return d.name.startsWith('CZ') ? P.czTime : P.pressTime; // transfer: CZ / ABF壓機
+}
+function procTimeSMK(d){
+  const n=d.name; // 多機台名稱有 _1/_2... 後綴，用前綴比對
+  if(n==='CLN')            return P.smkCln;
+  if(n.startsWith('CZ'))     return P.smkCz;
+  if(n.startsWith('SMK壓機')) return P.smkPress;
+  if(n.startsWith('曝光機'))  return P.smkExp;
+  if(n.startsWith('顯影機'))  return P.smkDev;
+  if(n.startsWith('UVQ'))    return P.smkUvq;
+  if(n.startsWith('換框機'))  return P.smkChanger;
+  return 360;
+}
+// 當前作用線每框片數
+function curBatch(){ return LC.id==='smk' ? P.smkBt : P.abfBt; }
+LINES.smk = {
+  id:'smk',
+  defs: SMK_DEFS,
+  agvInits: SMK_AGV_INITS,
+  route: routeSMK,
+  procTime: procTimeSMK,
+  // 多機台索引：CZ[2,11] 壓機[4,12,13,14] 顯影[6,15] UVQ[8,16] 換框機[10,17]
+  groups: [
+    {grp:1, src:[0],          mid:1,    dst:[2,11],        priA:8, priB:9, midSpace:'pending'},
+    {grp:2, src:[2,11],       mid:3,    dst:[4,12,13,14],  priA:8, priB:9, midSpace:'pending'},
+    {grp:3, src:[4,12,13,14], mid:null, dst:[5],           priA:9},                 // 2 站直送
+    {grp:4, src:[5],          mid:null, dst:[6,15],        priA:9},                 // 2 站直送
+    {grp:5, src:[6,15],       mid:7,    dst:[8,16],        priA:8, priB:9, midSpace:'pending'},
+    {grp:6, src:[8,16],       mid:9,    dst:[10,17],       priA:8, priB:9, midSpace:'pending'},
+  ],
+  // 單列佈局：11 主站水平、多機台垂直往下堆疊（同 ABF）；viewBox 加寬容納
+  layout:{ type:'row', xiCount:11, gap:210,
+           zones:[[0,2],[2,4],[4,5],[5,6],[6,8],[8,10]],
+           agvLbls:['A1,A2','A3,A4','A5','A6','A7,A8','A9,A10,A11'],
+           viewBox:'0 0 2440 880', legendY:846, header:'SMK 製程線',
+           simple:{ rows:[[0,1,2,3,4,5],[6,7,8,9,10]], rowY:[250,510], rowTrack:[[165,185],[425,445]], viewBox:'-20 0 1500 660', legendY:628 } },
+};
+
+// 根據站點類型選擇取/放料時間
+function getPickTime(si){ const smk=LC.id==='smk'; return abfSt[si]?.buf ? (smk?P.smkBufPick:P.bufPickTime) : (smk?P.smkPick:P.pickTime); }
+function getDropTime(si){ const smk=LC.id==='smk'; return abfSt[si]?.buf ? (smk?P.smkBufDrop:P.bufDropTime) : (smk?P.smkDrop:P.dropTime); }
+
+// Group 1 任務：CLN ↔ Annealing ↔ CZ（所有 CZ 機台）
+function getGroup1Tasks(){
+  const s = abfSt;
+  const T = [];
+  // CLN 出滿框 → Annealing
+  if(s[0].s_out && !s[0].s_out_res && s[1].fullAvail+s[1].pendingFrames.length < s[1].buf)
+    T.push({f:0,t:1,c:'full',pri:7});
+  // Annealing → 任一空的 CZ 入滿框（目的地沒框且未預訂）
+  for(const ci of CZ_INDICES)
+    if(s[1].fullAvail > s[1].fullReserved && s[ci].in_full===0 && !s[ci].in_full_res)
+      T.push({f:1,t:ci,c:'full',pri:9});
+  // 每台 CZ 退空框 → CLN 收空框（CLN 收空框位沒框且未預訂）
+  for(const ci of CZ_INDICES)
+    if(s[ci].in_ret && !s[ci].in_ret_hold && !s[ci].in_ret_res && s[0].s_recv===0 && !s[0].s_recv_res)
+      T.push({f:ci,t:0,c:'empty',pri:10});
+  return T;
+}
+
+// Group 2 任務：CZ ↔ Baking ↔ ABF壓機（所有 CZ 和 ABF壓機 機台）
+function getGroup2Tasks(){
+  const s = abfSt;
+  const T = [];
+  // 每台 CZ 出滿框 → Baking
+  for(const ci of CZ_INDICES)
+    if(s[ci].out_full && !s[ci].out_full_hold && !s[ci].out_full_res && s[3].fullAvail < s[3].buf)
+      T.push({f:ci,t:3,c:'full',pri:8});
+  // Baking → 任一空的 ABF壓機 入滿框（目的地沒框且未預訂）
+  for(const pi of PRESS_INDICES)
+    if(s[3].fullAvail > s[3].fullReserved && s[pi].in_full===0 && !s[pi].in_full_res)
+      T.push({f:3,t:pi,c:'full',pri:9});
+  // 每台 ABF壓機 退空框 → 任一空的 CZ 出料收空框（目的地沒框且未預訂）
+  for(const pi of PRESS_INDICES)
+    if(s[pi].in_ret && !s[pi].in_ret_hold && !s[pi].in_ret_res)
+      for(const ci of CZ_INDICES)
+        if(s[ci].out_recv===0 && !s[ci].out_recv_res){ T.push({f:pi,t:ci,c:'empty',pri:10}); break; }
+  return T;
+}
+
+// Group 3 任務：ABF壓機 ↔ Postcure ↔ 換框機（所有 ABF壓機 機台）
+function getGroup3Tasks(){
+  const s = abfSt;
+  const T = [];
+  // 每台 ABF壓機 出滿框 → Postcure
+  for(const pi of PRESS_INDICES)
+    if(s[pi].out_full && !s[pi].out_full_hold && !s[pi].out_full_res)
+      T.push({f:pi,t:5,c:'full',pri:9});
+  // Postcure → 任一空的 換框機 入滿框（目的地沒框且未預訂）
+  for(const chi of CHANGER_INDICES)
+    if(s[5].fullAvail > s[5].fullReserved && s[chi].in_full===0 && !s[chi].in_full_res)
+      T.push({f:5,t:chi,c:'full',pri:8});
+  // 每台換框機 退空框 → 任一空的 ABF壓機 出料收空框（目的地沒框且未預訂）
+  for(const chi of CHANGER_INDICES)
+    if(s[chi].in_ret && !s[chi].in_ret_hold && !s[chi].in_ret_res)
+      for(const pi of PRESS_INDICES)
+        if(s[pi].out_recv===0 && !s[pi].out_recv_res){ T.push({f:chi,t:pi,c:'empty',pri:10}); break; }
+  return T;
+}
+
+// 預訂目的地 slot：AGV 接受任務時同時鎖定目的地，防止兩台 AGV 同時投遞到同一個空 slot
+function reserveDestination(destIdx, cargo){
+  const s = abfSt[destIdx];
+  if(!s) return;
+  if(cargo==='full'){
+    if(s.mtype==='transfer'||s.mtype==='changer') s.in_full_res=1;
+  }
+  if(cargo==='empty'){
+    if(s.mtype==='refill') s.s_recv_res=1;
+    if(s.mtype==='transfer') s.out_recv_res=1;
+  }
+}
+
+// 預訂取貨：防止兩台 AGV 搶同一個框。
+// transfer 站只設 reservation flag，不清除 slot（slot 要等 AGV 實際到站才清）
+function tryPickupABF(si, cargo){
+  const s = abfSt[si];
+  if(cargo==='full'){
+    if(s.mtype==='refill'   && s.s_out>0 && !s.s_out_res)                            { s.s_out_res=1;    return true; }
+    if(s.mtype==='transfer' && s.out_full>0 && !s.out_full_hold && !s.out_full_res) { s.out_full_res=1;  return true; }
+    if(s.buf && s.fullAvail > s.fullReserved)                                       { s.fullReserved++; return true; }
+  }
+  if(cargo==='empty'){
+    if((s.mtype==='transfer'||s.mtype==='changer') && s.in_ret>0 && !s.in_ret_hold && !s.in_ret_res)
+      { s.in_ret_res=1; return true; }
+  }
+  return false;
+}
+
+// AGV 實際到站後才清除 slot / 扣除數量（PORT 顯示在此刻改變）
+function doActualPickup(si, cargo){
+  const s = abfSt[si];
+  if(cargo==='full'){
+    if(s.mtype==='refill')   { s.s_out=0;      s.s_out_res=0;   }
+    if(s.mtype==='transfer') { s.out_full=0;   s.out_full_res=0; }
+    else if(s.buf)           { s.fullAvail--;   s.fullReserved--; }
+  }
+  if(cargo==='empty' && (s.mtype==='transfer'||s.mtype==='changer')) { s.in_ret=0; s.in_ret_res=0; }
+}
+
+// Layout
+const SX=85, EX=1315;
+const ABF_SY=195, ABF_TY_FWD=108, ABF_TY_RET=128;
+const SIM_MULT=10;
+
+// ══════════════════════════════════════════════════════════════
+// RUNTIME STATE（作用線狀態統一存於 abfSt/abfAGVs/abfOut/abfPcs）
+// ══════════════════════════════════════════════════════════════
+let simT=0, running=false, spd=1, lastRT=null, rafId=null;
+let viewMode='detailed', simpleCols=[]; // 'detailed' | 'simple'（精簡雙視圖）
+let abfSt=[], abfAGVs=[];
+let abfOut=[], abfPcs=0, lastChart=-999;
+let chart=null, cdata={labels:[],abf:[],smk:[]};
+
+// ══════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════
+// 站點幾何：依 layout 計算 x,y 與軌道錨點 tfy(前進)/tyr(回程)
+function computeGeom(L){
+  const lay=L.layout, out=new Array(L.defs.length);
+  if(lay.type==='serpentine'){
+    const GAP=(EX-SX)/(Math.max(...lay.rows.map(r=>r.length))-1);
+    lay.rows.forEach((row,r)=>{
+      const y=lay.rowY[r], tf=lay.rowTrack[r][0], tr=lay.rowTrack[r][1];
+      const ltr=(r%2===0); // 偶列左→右、奇列右→左（蛇形）
+      row.forEach((idx,k)=>{
+        const x = ltr ? (SX + k*GAP) : (EX - k*GAP);
+        out[idx]={x:Math.round(x), y, tfy:tf, tyr:tr};
+      });
+    });
+  } else { // 'row'
+    const gap=lay.gap || (EX-SX)/(lay.xiCount-1);
+    L.defs.forEach((d,i)=>{
+      const xi=d.xi!==undefined?d.xi:i, sub=d.sub!==undefined?d.sub:0;
+      out[i]={x:Math.round(SX+xi*gap), y:ABF_SY+sub*SUB_SPACING, tfy:ABF_TY_FWD, tyr:ABF_TY_RET};
+    });
+  }
+  return out;
+}
+function initSim(){
+  LC = LINES[selectedLine] || LINES.abf; // 一般化接點：選定當前 line config
+  simT=0; running=false; lastRT=null;
+  abfOut=[]; abfPcs=0; lastChart=-999;
+  cdata={labels:[],abf:[],smk:[]};
+
+  // 作用線站點：幾何（x,y + 軌道錨點 tfy/tyr）由 layout 計算（row / serpentine）
+  const _geom = computeGeom(LC);
+  abfSt=LC.defs.map((d,i)=>{
+    const xi  = d.xi  !== undefined ? d.xi  : i;
+    const sub = d.sub !== undefined ? d.sub : 0;
+    const g   = _geom[i];
+    const base={name:d.name,x:g.x,y:g.y,tfy:g.tfy,tyr:g.tyr,xi,sub,mtype:d.mtype||null,buf:d.buf||0,sink:d.sink||false};
+    const pt = LC.procTime(d); // 處理時間：依製程線 + 站別
+    if(d.mtype==='refill'){
+      // CLN: 3 slots + machine
+      // Pre-load: 1 frame in processing, 1 frame ready at output
+      return {...base,
+        s_recv:1, s_recv_res:0, s_proc:1, s_out:1, s_out_res:0,
+        processTime:pt, machineActive:true, machineTimer:pt
+      };
+    } else if(d.mtype==='transfer'){
+      // CZ/壓機/曝光/顯影/UVQ: 6 slots (3 input + 3 output) + machine
+      return {...base,
+        // 入料端
+        in_full:0, in_full_res:0, in_proc:0, in_ret:1, in_ret_hold:0, in_ret_res:0,
+        // 出料端 — 預載：收空框位 + 放置位 各 1 個空框
+        out_recv:1, out_recv_res:0, out_proc:1, out_full:0, out_full_hold:0, out_full_res:0,
+        processTime:pt, machineActive:false, machineTimer:0
+      };
+    } else if(d.mtype==='changer'){
+      return {...base,
+        in_full:0, in_full_res:0, in_proc:0, in_ret:1, in_ret_hold:0, in_ret_res:0,
+        in_full_wait:0, machineActive:false, machineTimer:0, processTime:pt
+      };
+    } else if(d.buf){
+      return {...base, fullAvail:0, fullReserved:0, holdTime:d.holdTime||0,
+              pendingFrames:[], countOnDelivery:!!d.countOnDelivery};
+    } else {
+      return base;
+    }
+  });
+  // 各站每小時產出統計（桶索引 = floor(simT/3600)）
+  abfSt.forEach(s=>{ s.prodHist=[]; });
+
+  // ABF AGVs — 動態任務狀態（分組專用）
+  abfAGVs = LC.agvInits.map(d=>({
+    id:d.id, pos:d.pos, grp:d.grp,
+    fromPos:d.pos, toPos:-1, destPos:-1,
+    legPos:0, legTime:1,
+    phase:'idle',
+    cargo:null,
+    stag:d.stag,
+    pickWait:0, dropWait:0,
+    // 稼動統計：移動 / 取放 / 閒置 / 啟動等待（秒）
+    tMove:0, tHandle:0, tIdle:0, tStag:0
+  }));
+
+  buildSVG();
+
+  // 作用線一律用 abf-* 群組渲染（ABF 式）；舊 smk-* 輸送帶群組隱藏
+  const _abfEls=['abf-tracks','abf-stations','abf-agvs','abf-hdr','abf-hdr2'];
+  const _smkEls=['smk-tracks','smk-stations','smk-agvs','smk-hdr','smk-hdr2'];
+  _abfEls.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='';});
+  _smkEls.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+  // 表頭文字依作用線；viewBox 依 layout
+  const _hdr=document.getElementById('abf-hdr'); if(_hdr) _hdr.textContent=LC.layout.header;
+  const _svg=document.getElementById('fsvg');
+  _svg.setAttribute('viewBox', viewMode==='simple' ? LC.layout.simple.viewBox : LC.layout.viewBox);
+  syncCamera();
+
+  if(chart){chart.data.labels=[];chart.data.datasets[0].data=[];chart.data.datasets[1].data=[];chart.update('none');}
+  updateUI();
+  document.getElementById('bplay').textContent='▶ 播放';
+  document.getElementById('ov').classList.remove('show');
+  document.getElementById('s-tgt').textContent=P.tg+' 片';
+}
+
+// ══════════════════════════════════════════════════════════════
+// ABF MACHINE LOGIC (slot-based)
+// ══════════════════════════════════════════════════════════════
+const FEED_DELAY   = 5;  // 入料延遲：框到位 5s 後自動推入下一位
+const OUT_FULL_HOLD = 5;  // 出滿框保護期（A3/A4 先來取）
+const IN_RET_HOLD   = 15; // 退空框保護期（比出滿框長，確保兩者分開消失）
+
+// 記錄某站一次產出（curBatch 片）至當前小時桶
+function recordStnProd(s, units){
+  const bk=Math.floor(simT/3600);
+  s.prodHist[bk]=(s.prodHist[bk]||0)+(units!=null?units:curBatch());
+}
+function updateABFMachines(dt){
+  for(const s of abfSt){
+    if(!s.mtype) continue;
+
+    if(s.mtype==='refill'){
+      // Auto-feed: 收空框位 →(5s)→ 空框放置位 → 機器開始
+      if(s.s_recv && !s.s_proc){
+        s.recv_wait = (s.recv_wait||0) + dt;
+        if(s.recv_wait >= FEED_DELAY){
+          s.s_proc=1; s.s_recv=0; s.recv_wait=0;
+          s.machineActive=true; s.machineTimer=s.processTime;
+        }
+      } else {
+        s.recv_wait=0;
+      }
+      // Process（計時器到 0 後停住等 s_out 清空）
+      if(s.machineActive){
+        s.machineTimer = Math.max(0, s.machineTimer-dt);
+        if(s.machineTimer===0 && !s.s_out){
+          s.s_out=1; s.s_proc=0; s.machineActive=false;
+          recordStnProd(s);
+        }
+      }
+
+    } else if(s.mtype==='transfer'){ // 'transfer' (CZ, ABF壓機) —— 換框機(changer)由下方專屬迴圈處理，不可在此重複處理
+
+      // 保護期倒數（讓 AGV 看到框後過 5s 才能取，確保畫面可見）
+      if(s.in_ret_hold > 0)   s.in_ret_hold   = Math.max(0, s.in_ret_hold   - dt);
+      if(s.out_full_hold > 0) s.out_full_hold = Math.max(0, s.out_full_hold - dt);
+
+      // 入滿框 → 拿料位（拿料位空才移入，5s 延遲）
+      if(s.in_full && !s.in_proc){
+        s.in_full_wait = (s.in_full_wait||0) + dt;
+        if(s.in_full_wait >= FEED_DELAY){ s.in_proc=1; s.in_full=0; s.in_full_wait=0; }
+      } else { s.in_full_wait=0; }
+
+      // 收空框 → 放置位（放置位空才移入，5s 延遲）
+      if(s.out_recv && !s.out_proc){
+        s.out_recv_wait = (s.out_recv_wait||0) + dt;
+        if(s.out_recv_wait >= FEED_DELAY){ s.out_proc=1; s.out_recv=0; s.out_recv_wait=0; }
+      } else { s.out_recv_wait=0; }
+
+      // 拿料位 + 放置位 都有框，且退空框和出滿框都空 → 才啟動機器
+      if(!s.machineActive && s.in_proc && s.out_proc && !s.in_ret && !s.out_full){
+        s.machineActive=true; s.machineTimer=s.processTime;
+      }
+
+      // 計時結束：退空框空且出滿框空，才把框移過去（否則繼續等）
+      if(s.machineActive){
+        s.machineTimer = Math.max(0, s.machineTimer-dt);
+        if(s.machineTimer===0 && !s.in_ret && !s.out_full){
+          s.machineActive=false;
+          s.in_proc=0;  s.in_ret=1;   s.in_ret_hold=IN_RET_HOLD;
+          s.out_proc=0; s.out_full=1; s.out_full_hold=OUT_FULL_HOLD;
+          recordStnProd(s);
+        }
+      }
+    }
+  }
+  // 換框機邏輯（入料端：入滿框→拿料位→退空框）
+  for(const s of abfSt){
+    if(s.mtype!=='changer') continue;
+    if(s.in_ret_hold>0) s.in_ret_hold=Math.max(0,s.in_ret_hold-dt);
+    // 入滿框 → 拿料位（5s 延遲）
+    if(s.in_full && !s.in_proc){
+      s.in_full_wait=(s.in_full_wait||0)+dt;
+      if(s.in_full_wait>=FEED_DELAY){ s.in_proc=1; s.in_full=0; s.in_full_wait=0; }
+    } else { s.in_full_wait=0; }
+    // 拿料位有框且退空框空 → 才啟動拿料計時（退空框有框時不能啟動，等AGV取走後再開始）
+    if(!s.machineActive && s.in_proc && !s.in_ret){ s.machineActive=true; s.machineTimer=s.processTime; }
+    // 拿料完成
+    if(s.machineActive){
+      const prevTimer=s.machineTimer;
+      s.machineTimer=Math.max(0,s.machineTimer-dt);
+      // timer 首次歸零 → 立刻計產（不等退空框有沒有空間）
+      if(prevTimer>0 && s.machineTimer===0){
+        abfOut.push(simT); abfPcs+=curBatch(); recordStnProd(s); checkDone();
+      }
+      // 退空框空了才把框移過去
+      if(s.machineTimer===0 && !s.in_ret){
+        s.machineActive=false; s.in_proc=0; s.in_ret=1; s.in_ret_hold=IN_RET_HOLD;
+      }
+    }
+  }
+  // Buffer hold 計時：框放入緩衝區後等待 holdTime 秒才能被取走
+  for(const s of abfSt){
+    if(!s.buf || !s.pendingFrames.length) continue;
+    for(let k=0;k<s.pendingFrames.length;k++) s.pendingFrames[k]-=dt;
+    const ready=s.pendingFrames.filter(t=>t<=0).length;
+    s.fullAvail+=ready;
+    if(ready>0) recordStnProd(s, ready*curBatch());
+    s.pendingFrames=s.pendingFrames.filter(t=>t>0);
+  }
+  // 瓶頸偵測：累計各站「出口滿框 / 退空框 / 緩衝滿載」滯留時間（PORT 堆積式）
+  for(const s of abfSt){ if(stPiled(s)) s.pileT=(s.pileT||0)+dt; else s.pileT=0; }
+}
+// 某站是否有料堆積在出口（下游或回收 AGV 沒及時取走）
+function stPiled(s){
+  if(s.buf)               return s.fullAvail >= s.buf;        // 緩衝滿載
+  if(s.mtype==='refill')  return !!s.s_out;                   // 出滿框未取
+  if(s.mtype==='transfer')return !!s.out_full || !!s.in_ret;  // 出滿框/退空框未取
+  if(s.mtype==='changer') return !!s.in_ret;                  // 退空框未取
+  return false;
+}
+const BNK_TH=150; // 瓶頸判定門檻（秒）
+function refreshBottleneck(){
+  const bl=document.getElementById('bnklist'); if(!bl) return;
+  const piles=abfSt.filter(s=>(s.pileT||0)>BNK_TH).sort((a,b)=>(b.pileT||0)-(a.pileT||0));
+  if(!piles.length){ bl.innerHTML='<div class="nob">目前無瓶頸</div>'; return; }
+  bl.innerHTML=piles.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">`
+    +`<span class="bb">堆積</span><span style="font-size:11px;margin:0 4px;flex:1">${s.name}</span>`
+    +`<span style="color:var(--red);font-size:12px;font-weight:bold">${Math.round(s.pileT)}s</span></div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+// ABF DROPOFF（放貨）
+// ══════════════════════════════════════════════════════════════
+function doDropoffABF(si, cargo){
+  const s=abfSt[si];
+  if(cargo==='full'){
+    if(s.mtype==='transfer'||s.mtype==='changer'){ s.in_full=1; s.in_full_res=0; return; }
+    if(s.buf){
+      if(s.countOnDelivery){ abfOut.push(simT); abfPcs+=curBatch(); checkDone(); }
+      if(s.holdTime>0) s.pendingFrames.push(s.holdTime); else { s.fullAvail++; recordStnProd(s); }
+      return;
+    }
+  }
+  if(cargo==='empty'){
+    if(s.mtype==='refill'){ s.s_recv=1; s.s_recv_res=0; return; }
+    if(s.mtype==='transfer'){ s.out_recv=1; s.out_recv_res=0; return; }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// ABF AGV STEP — 動態任務分配
+// ══════════════════════════════════════════════════════════════
+function startDelivery(agv){
+  agv.fromPos=agv.pos; agv.toPos=agv.destPos;
+  agv.legPos=0; agv.legTime=Math.max(1,tABF(agv.pos,agv.destPos));
+  agv.phase='delivering';
+}
+
+function stepABFAgv(agv, dt){
+  // 稼動統計累計（依進入此步前的狀態分類）
+  if(agv.stag>0) agv.tStag+=dt;
+  else if(agv.phase==='picking'||agv.phase==='dropping') agv.tHandle+=dt;
+  else if(agv.phase==='idle') agv.tIdle+=dt;
+  else agv.tMove+=dt; // toPickup / delivering
+  if(agv.stag>0){ agv.stag-=dt; return; }
+
+  // 取料等待（AGV 已到站，等取料時間）
+  if(agv.phase==='picking'){
+    agv.pickWait-=dt;
+    if(agv.pickWait<=0) startDelivery(agv);
+    return;
+  }
+
+  // 放料等待（AGV 已到站，等放料時間）
+  if(agv.phase==='dropping'){
+    agv.dropWait-=dt;
+    if(agv.dropWait<=0){ doDropoffABF(agv.pos,agv.cargo); agv.cargo=null; agv.phase='idle'; }
+    return;
+  }
+
+  if(agv.phase==='idle'){
+    const tasks = genGroupTasks(LC.groups[agv.grp-1]);
+    tasks.sort((a,b)=>{
+      const da=tABF(agv.pos,a.f), db=tABF(agv.pos,b.f);
+      // 1. 就在取貨站（距離=0）優先 → 一放一取，不多跑
+      if((da===0)!==(db===0)) return da===0?-1:1;
+      // 2. 再看任務優先度
+      if(b.pri!==a.pri) return b.pri-a.pri;
+      // 3. 最後取距離最近
+      return da-db;
+    });
+    for(const task of tasks){
+      // 如果同組有更近的閒置 AGV，讓它去取，自己跳過
+      const myDist = tABF(agv.pos, task.f);
+      const closerExists = abfAGVs.some(o =>
+        o !== agv && o.grp === agv.grp && o.phase === 'idle' && o.stag <= 0 &&
+        tABF(o.pos, task.f) < myDist
+      );
+      if(closerExists) continue;
+      if(tryPickupABF(task.f, task.c)){
+        agv.cargo=task.c; agv.destPos=task.t;
+        reserveDestination(task.t, task.c);
+        if(agv.pos===task.f){
+          doActualPickup(task.f,task.c);
+          const _pt=getPickTime(task.f);
+          if(_pt>0){ agv.pickWait=_pt; agv.phase='picking'; }
+          else startDelivery(agv);
+        } else {
+          agv.fromPos=agv.pos; agv.toPos=task.f;
+          agv.legPos=0; agv.legTime=Math.max(1,tABF(agv.pos,task.f));
+          agv.phase='toPickup';
+        }
+        break;
+      }
+    }
+    return;
+  }
+
+  agv.legPos += dt / agv.legTime;
+  if(agv.legPos >= 1){
+    agv.legPos=1; agv.pos=agv.toPos;
+    if(agv.phase==='toPickup'){
+      doActualPickup(agv.pos,agv.cargo);
+      const _pt=getPickTime(agv.pos);
+      if(_pt>0){ agv.pickWait=_pt; agv.phase='picking'; }
+      else startDelivery(agv);
+    } else { // delivering
+      const _dt=getDropTime(agv.pos);
+      if(_dt>0){ agv.dropWait=_dt; agv.phase='dropping'; }
+      else { doDropoffABF(agv.pos,agv.cargo); agv.cargo=null; agv.phase='idle'; }
+    }
+  }
+}
+
+function checkDone(){
+  const tot=abfPcs; // 作用線產出一律累計於 abfPcs
+  if(tot>=P.tg){
+    running=false;
+    document.getElementById('bplay').textContent='▶ 播放';
+    document.getElementById('ovm').textContent=`已完成 ${tot} 片，模擬時間 ${fmt(simT)}`;
+    document.getElementById('ov').classList.add('show');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// ANIMATION LOOP
+// ══════════════════════════════════════════════════════════════
+function tick(rt){
+  if(!running)return;
+  if(lastRT===null)lastRT=rt;
+  const sd=(rt-lastRT)/1000*SIM_MULT*spd; lastRT=rt;
+  simT+=sd;
+  // 作用線（ABF 或 SMK）一律走一般化引擎
+  updateABFMachines(sd); for(const a of abfAGVs)stepABFAgv(a,sd);
+  if(simT-lastChart>=60){lastChart=simT;updateChart();}
+  updateUI();
+  rafId=requestAnimationFrame(tick);
+}
+function togglePlay(){
+  running=!running;
+  document.getElementById('bplay').textContent=running?'⏸ 暫停':'▶ 播放';
+  if(running){lastRT=null;rafId=requestAnimationFrame(tick);}
+  else if(rafId)cancelAnimationFrame(rafId);
+}
+function setSpeed(s){
+  spd=s;[1,2,5,10].forEach(v=>document.getElementById(`b${v}x`).classList.toggle('act',v===s));
+}
+// 立即結果：不播放動畫，分塊全速跑物理直到達標或上限，再顯示結果
+let fastRun=false;
+function fastForward(){
+  if(fastRun) return;
+  if(running) togglePlay();              // 停掉動畫播放
+  fastRun=true;
+  const dt=1, CHUNK=80000;
+  const MAX_SIMT=simT + 5000*3600;       // 上限：再模擬 5000 小時（安全網，多數目標會提早達成）
+  const btn=document.getElementById('btn-fast');
+  if(btn){ btn.disabled=true; }
+  function step(){
+    let n=0;
+    while(n<CHUNK && abfPcs<P.tg && simT<MAX_SIMT){
+      updateABFMachines(dt); for(const a of abfAGVs) stepABFAgv(a,dt); simT+=dt; n++;
+    }
+    if(abfPcs>=P.tg || simT>=MAX_SIMT){
+      fastRun=false;
+      if(btn){ btn.disabled=false; btn.textContent='⏩ 立即結果'; }
+      lastChart=-999; cdata={labels:[],abf:[],smk:[]};
+      if(chart){chart.data.labels=[];chart.data.datasets[0].data=[];chart.data.datasets[1].data=[];chart.update('none');}
+      updateUI();
+      showFastResult();
+    } else {
+      if(btn) btn.textContent=`⏳ ${Math.min(99,Math.round(abfPcs/P.tg*100))}%`;
+      requestAnimationFrame(step);
+    }
+  }
+  requestAnimationFrame(step);
+}
+function showFastResult(){
+  const done=abfPcs, reached=done>=P.tg;
+  const avg = simT>0 ? Math.round(done/(simT/3600)) : 0; // 平均產能 = 總片數 / 總時數
+  const recentUph=calcUPH(abfOut,simT,curBatch());
+  const ovh=document.getElementById('ovh'), ovm=document.getElementById('ovm');
+  let msg;
+  if(reached){
+    if(ovh) ovh.textContent='✅ 達成目標';
+    msg=`完成 ${P.tg} 片<br>模擬時間 <b>${fmt(simT)}</b><br>平均產能 <b>${avg}</b> 片/hr`;
+  } else {
+    if(ovh) ovh.textContent='⏱ 計算結果（達上限）';
+    let eta='—'; if(recentUph>0) eta=fmt(simT + (P.tg-done)/recentUph*3600);
+    msg=`已模擬 ${fmt(simT)}<br>完成 ${done} / ${P.tg} 片<br>目前 UPH ${recentUph} 片/hr<br>預估達標時間 <b>${eta}</b>`;
+  }
+  if(ovm) ovm.innerHTML=msg;
+  document.getElementById('ov').classList.add('show');
+}
+function resetSim(){running=false;if(rafId)cancelAnimationFrame(rafId);liveMarks=[];renderLiveMarks();initSim();}
+function toggleBot(){
+  const bot=document.getElementById('bot');
+  const tog=document.getElementById('bot-toggle');
+  const collapsed=bot.classList.toggle('collapsed');
+  tog.classList.toggle('collapsed',collapsed);
+  if(chart) setTimeout(()=>chart.resize(),260);
+}
+
+// ══════════════════════════════════════════════════════════════
+// SVG BUILD
+// ══════════════════════════════════════════════════════════════
+const NS='http://www.w3.org/2000/svg';
+function ns(t){return document.createElementNS(NS,t);}
+
+function buildSVG(){
+  if(viewMode==='simple'){ buildSimpleSVG(); return; }
+  // 一般化：作用線（ABF 或 SMK）都用 ABF 式渲染器（abfSt/abfAGVs 為當前作用線狀態）
+  buildABFSVG();
+  buildABFAgvSVG();
+}
+
+// ══════════════════════════════════════════════════════════════
+// 精簡視圖（每製程位置一個大方塊，多機台合併；字大、適合 demo 全覽）
+// ══════════════════════════════════════════════════════════════
+// 依 layout.simple 計算各 xi 欄位的位置與軌道錨點，多機台(同 xi)合併為一欄
+function xiColumns(){
+  const lay=LC.layout.simple;
+  const byXi={}; abfSt.forEach((s,i)=>{(byXi[s.xi]=byXi[s.xi]||[]).push(i);});
+  const cols=Object.keys(byXi).map(Number).sort((a,b)=>a-b).map(xi=>({xi,members:byXi[xi],rep:byXi[xi][0]}));
+  const GAP=(EX-SX)/(Math.max(...lay.rows.map(r=>r.length))-1);
+  lay.rows.forEach((row,r)=>{
+    const ltr=(r%2===0);
+    row.forEach((xi,k)=>{
+      const col=cols.find(c=>c.xi===xi); if(!col)return;
+      col.x=Math.round(ltr?SX+k*GAP:EX-k*GAP); col.y=lay.rowY[r];
+      col.tfy=lay.rowTrack[r][0]; col.tyr=lay.rowTrack[r][1];
+    });
+  });
+  return cols;
+}
+function buildSimpleSVG(){
+  const tg=document.getElementById('abf-tracks'),sg=document.getElementById('abf-stations'),ag=document.getElementById('abf-agvs');
+  tg.innerHTML='';sg.innerHTML='';ag.innerHTML='';
+  simpleCols=xiColumns();
+  const ordered=[...simpleCols].sort((a,b)=>a.xi-b.xi);
+  // 軌道（依 xi 序連接欄位錨點）
+  for(let i=0;i<ordered.length-1;i++){
+    const a=ordered[i],b=ordered[i+1],clr=GRP_CLR[stGrp(a.xi)];
+    const lf=ns('line');lf.setAttribute('x1',a.x);lf.setAttribute('y1',a.tfy);lf.setAttribute('x2',b.x);lf.setAttribute('y2',b.tfy);
+    lf.setAttribute('stroke',clr.fwd);lf.setAttribute('stroke-width','4');tg.appendChild(lf);
+    const lr=ns('line');lr.setAttribute('x1',a.x);lr.setAttribute('y1',a.tyr);lr.setAttribute('x2',b.x);lr.setAttribute('y2',b.tyr);
+    lr.setAttribute('stroke',clr.ret);lr.setAttribute('stroke-width','2.5');lr.setAttribute('stroke-dasharray','6 4');tg.appendChild(lr);
+    const mx=(a.x+b.x)/2,my=(a.tfy+b.tfy)/2;let dir='▶';
+    if(Math.abs(b.x-a.x)<8) dir=(b.tfy>a.tfy?'▼':'▲'); else dir=(b.x>a.x?'▶':'◀');
+    const arr=ns('text');arr.setAttribute('x',mx);arr.setAttribute('y',my-6);arr.setAttribute('class','slb');
+    arr.setAttribute('style',`fill:${clr.fwd};font-size:18px;opacity:0.9`);arr.textContent=dir;tg.appendChild(arr);
+  }
+  // 欄位方塊
+  const bw=150,bh=78;
+  simpleCols.forEach(col=>{
+    const gc=GRP_CLR[stGrp(col.xi)],s0=abfSt[col.rep];
+    const g=ns('g');g.setAttribute('id',`sim-col-${col.xi}`);
+    const r=ns('rect');r.setAttribute('x',col.x-bw/2);r.setAttribute('y',col.y-bh/2);r.setAttribute('width',bw);r.setAttribute('height',bh);
+    r.setAttribute('rx',8);r.setAttribute('fill','#ffffff');r.setAttribute('stroke',gc.lbl);r.setAttribute('stroke-width','2.5');
+    r.setAttribute('id',`sim-box-${col.xi}`);g.appendChild(r);
+    const hd=ns('rect');hd.setAttribute('x',col.x-bw/2);hd.setAttribute('y',col.y-bh/2);hd.setAttribute('width',bw);hd.setAttribute('height',26);hd.setAttribute('rx',8);
+    hd.setAttribute('fill',gc.fwd);hd.setAttribute('opacity','0.32');g.appendChild(hd);
+    const cnt=col.members.length;
+    const nm=s0.name.replace(/_\d+$/,'')+(cnt>1?` ×${cnt}`:'');
+    const nt=ns('text');nt.setAttribute('x',col.x);nt.setAttribute('y',col.y-bh/2+18);nt.setAttribute('class','slb');
+    nt.setAttribute('style',`font-size:17px;font-weight:700;fill:${gc.lbl}`);nt.textContent=nm;g.appendChild(nt);
+    const st=ns('text');st.setAttribute('x',col.x);st.setAttribute('y',col.y+16);st.setAttribute('class','slb');
+    st.setAttribute('style','font-size:16px;font-weight:600');st.setAttribute('id',`sim-st-${col.xi}`);st.textContent='';g.appendChild(st);
+    sg.appendChild(g);
+  });
+  drawAgvLegend(tg, SX, LC.layout.simple.legendY||600); // AGV 圖例
+  buildABFAgvSVG(); // AGV 圓圈沿用，位置由 updateSimpleAgvPos 決定
+}
+// 欄位聚合狀態（多機台合併）
+function colStatus(col){
+  const ms=col.members.map(i=>abfSt[i]);
+  const s0=ms[0];
+  if(s0.mtype==='refill'){
+    if(s0.machineActive&&s0.machineTimer>0) return {t:`⏱ ${Math.ceil(s0.machineTimer)}s`,c:'#1565c0'};
+    if(s0.s_out) return {t:'出料就緒',c:'#00922f'};
+    return {t:'idle',c:'#5a6a85'};
+  }
+  if(s0.buf){
+    const tot=ms.reduce((a,s)=>a+s.fullAvail+(s.pendingFrames?s.pendingFrames.length:0),0);
+    const cap=ms.reduce((a,s)=>a+s.buf,0);
+    return {t:`${tot}/${cap} 框`,c:tot>=cap?'#cc1111':tot>0?'#b8860b':'#5a6a85'};
+  }
+  // transfer / changer：忙碌台數
+  const busy=ms.filter(s=>s.machineActive).length;
+  return {t:`加工 ${busy}/${ms.length}`,c:busy>0?'#1565c0':'#5a6a85'};
+}
+function updateSimpleUI(){
+  for(const col of simpleCols){
+    const st=document.getElementById(`sim-st-${col.xi}`),box=document.getElementById(`sim-box-${col.xi}`);
+    const s=colStatus(col);
+    if(st){st.textContent=s.t;st.setAttribute('style',`font-size:16px;font-weight:600;fill:${s.c}`);}
+    if(box){ const piled=col.members.some(i=>(abfSt[i].pileT||0)>BNK_TH);
+      box.setAttribute('stroke',piled?'#cc1111':GRP_CLR[stGrp(col.xi)].lbl);
+      box.setAttribute('stroke-width',piled?'3.5':'2.5'); }
+  }
+  for(const a of abfAGVs) updateSimpleAgvPos(a);
+}
+function colOfXi(xi){ return simpleCols.find(c=>c.xi===xi); }
+function updateSimpleAgvPos(a){
+  const g=document.getElementById(`agv-${a.id}`),c=document.getElementById(`ac-${a.id}`);
+  if(!g||!c)return;
+  let x,ty;
+  const curCol=colOfXi(abfSt[a.pos]?.xi);
+  if(a.phase==='idle'||a.phase==='picking'||a.phase==='dropping'||a.toPos<0){
+    x=curCol?curCol.x:0; ty=curCol?curCol.y-46:0;
+  } else {
+    const fc=colOfXi(abfSt[a.fromPos]?.xi), tc=colOfXi(abfSt[a.toPos]?.xi);
+    const sx=fc?fc.x:0,dx=tc?tc.x:0;
+    const fwd=a.toPos>a.fromPos;
+    const sy=fwd?(fc?fc.tfy:0):(fc?fc.tyr:0), dy=fwd?(tc?tc.tfy:0):(tc?tc.tyr:0);
+    x=sx+(dx-sx)*a.legPos; ty=sy+(dy-sy)*a.legPos;
+  }
+  g.setAttribute('transform',`translate(${Math.round(x)},${Math.round(ty)})`);
+  // 車身飽和色 + 載貨標記（與詳細模式一致）
+  const carrying=(a.phase==='delivering'||a.phase==='dropping');
+  const ring=document.getElementById(`aring-${a.id}`);
+  agvBody(a, c, ring, carrying);
+  const cd=document.getElementById(`acd-${a.id}`);
+  if(cd){
+    if(carrying && a.cargo==='full'){cd.setAttribute('fill','#00c853');cd.setAttribute('stroke','#0a6b2e');cd.setAttribute('stroke-width','1.5');}
+    else if(carrying && a.cargo==='empty'){cd.setAttribute('fill','#ff9800');cd.setAttribute('stroke','#b35e00');cd.setAttribute('stroke-width','1.5');}
+    else {cd.setAttribute('fill','none');cd.setAttribute('stroke','none');}
+  }
+}
+function setViewMode(m){
+  viewMode=m;
+  const btn=document.getElementById('btn-view');
+  if(btn) btn.textContent = m==='simple' ? '▦ 詳細' : '▤ 精簡';
+  const svg=document.getElementById('fsvg');
+  if(svg) svg.setAttribute('viewBox', m==='simple' ? LC.layout.simple.viewBox : LC.layout.viewBox);
+  syncCamera();
+  buildSVG(); updateUI();
+}
+function toggleView(){ setViewMode(viewMode==='simple'?'detailed':'simple'); }
+
+// ══════════════════════════════════════════════════════════════
+// FLOWCHART CAMERA (zoom / pan via viewBox)
+// ══════════════════════════════════════════════════════════════
+let camera=null, cameraBase=null, dragging=false, dragMoved=false, _drag=null;
+function parseVB(str){ const p=str.trim().split(/\s+/).map(Number); return {x:p[0],y:p[1],w:p[2],h:p[3]}; }
+// 由目前 fsvg 的 viewBox 設定基準與當前攝影機（於 initSim / setViewMode 設好 viewBox 後呼叫）
+function syncCamera(){
+  const svg=document.getElementById('fsvg'); if(!svg) return;
+  const vb=svg.getAttribute('viewBox'); if(!vb) return;
+  cameraBase=parseVB(vb); camera={...cameraBase};
+}
+function applyCamera(){
+  const svg=document.getElementById('fsvg'); if(!svg||!camera) return;
+  svg.setAttribute('viewBox',`${camera.x} ${camera.y} ${camera.w} ${camera.h}`);
+}
+function resetCamera(){ if(!cameraBase) return; camera={...cameraBase}; applyCamera(); }
+function svgPoint(e){
+  const svg=document.getElementById('fsvg');
+  const pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
+  const m=svg.getScreenCTM(); if(!m) return {x:0,y:0};
+  return pt.matrixTransform(m.inverse());
+}
+function onCamWheel(e){
+  if(!camera) return;
+  e.preventDefault();
+  const f = e.deltaY<0 ? 0.9 : 1.1;           // 向上=放大（縮小 viewBox）
+  const p=svgPoint(e);
+  let nw=camera.w*f, nh=camera.h*f;
+  const minW=cameraBase.w/6, maxW=cameraBase.w/0.3; // 縮放限制 0.3x ~ 6x
+  if(nw<minW){ const k=minW/nw; nw*=k; nh*=k; }
+  if(nw>maxW){ const k=maxW/nw; nw*=k; nh*=k; }
+  const fx=(p.x-camera.x)/camera.w, fy=(p.y-camera.y)/camera.h;
+  camera.x=p.x-fx*nw; camera.y=p.y-fy*nh; camera.w=nw; camera.h=nh;
+  applyCamera();
+}
+function onCamDown(e){
+  if(e.button!==0||!camera) return;
+  dragging=true; dragMoved=false;
+  _drag={sx:e.clientX, sy:e.clientY, cx:camera.x, cy:camera.y};
+  hideStnTip();
+}
+function onCamMove(e){
+  if(!dragging) return;
+  const dx=e.clientX-_drag.sx, dy=e.clientY-_drag.sy;
+  if(Math.abs(dx)+Math.abs(dy)>3) dragMoved=true;
+  const svg=document.getElementById('fsvg');
+  const sx=camera.w/(svg.clientWidth||1), sy=camera.h/(svg.clientHeight||1);
+  camera.x=_drag.cx-dx*sx; camera.y=_drag.cy-dy*sy;
+  applyCamera();
+}
+function onCamUp(){ dragging=false; }
+function setupCameraControls(){
+  const svg=document.getElementById('fsvg'); if(!svg) return;
+  svg.addEventListener('wheel', onCamWheel, {passive:false});
+  svg.addEventListener('mousedown', onCamDown);
+  window.addEventListener('mousemove', onCamMove);
+  window.addEventListener('mouseup', onCamUp);
+}
+
+// Slot visual helper
+function makeSlot(g, cx, cy, id, label, sw, sh){
+  const r=ns('rect');
+  r.setAttribute('x',cx-sw/2); r.setAttribute('y',cy-sh/2);
+  r.setAttribute('width',sw); r.setAttribute('height',sh); r.setAttribute('rx',4);
+  r.setAttribute('fill','#eef2f8'); r.setAttribute('stroke','#c5d0e0'); r.setAttribute('stroke-width','1.5');
+  r.setAttribute('id',id); g.appendChild(r);
+  const t=ns('text');
+  t.setAttribute('x',cx); t.setAttribute('y',cy+1);
+  t.setAttribute('class','slb'); t.setAttribute('style','font-size:12px;font-weight:bold');
+  t.setAttribute('id',id+'-v'); t.textContent=''; g.appendChild(t);
+  const l=ns('text');
+  l.setAttribute('x',cx); l.setAttribute('y',cy+sh/2+9);
+  l.setAttribute('class','slb'); l.setAttribute('style','fill:#5a6a85;font-size:10px');
+  l.textContent=label; g.appendChild(l);
+}
+
+function makeArrow(g, x1, y, x2, color){
+  const c=color||'#8090aa';
+  const ln=ns('line');
+  ln.setAttribute('x1',x1); ln.setAttribute('y1',y);
+  ln.setAttribute('x2',x2-5); ln.setAttribute('y2',y);
+  ln.setAttribute('stroke',c); ln.setAttribute('stroke-width','1.5');
+  g.appendChild(ln);
+  const t=ns('text');
+  t.setAttribute('x',x2); t.setAttribute('y',y+3);
+  t.setAttribute('class','slb'); t.setAttribute('style',`fill:${c};font-size:11px`);
+  t.textContent='▶'; g.appendChild(t);
+}
+
+// Group colour palette (forward track, return track, zone fill, zone stroke, label)
+const GRP_CLR=[
+  {fwd:'#2196c4',ret:'#a8d6ea',zone:'#eaf6fb',zs:'#0277bd30',lbl:'#0277bd',name:'G1'},
+  {fwd:'#34a865',ret:'#aedcc0',zone:'#ecf8f0',zs:'#00853a30',lbl:'#00853a',name:'G2'},
+  {fwd:'#9b59d0',ret:'#d6bdee',zone:'#f4ecfb',zs:'#7b2fbf30',lbl:'#7b2fbf',name:'G3'},
+  {fwd:'#e08a2c',ret:'#f3d4ab',zone:'#fdf3e6',zs:'#c46a0030',lbl:'#c46a00',name:'G4'},
+  {fwd:'#1aa5a5',ret:'#aee0e0',zone:'#e8f7f7',zs:'#0a808030',lbl:'#0a8080',name:'G5'},
+  {fwd:'#d05b86',ret:'#f0c2d4',zone:'#fceef4',zs:'#b03a6630',lbl:'#b03a66',name:'G6'},
+];
+// Which xi range belongs to which group (segment between xi i and i+1) —— 由 LC.layout.zones 推導
+function segGrp(xi){ const z=LC.layout.zones; for(let i=0;i<z.length;i++) if(xi<z[i][1]) return i; return z.length-1; }
+// Which group does a station belong to (by xi) —— 共享站歸前一組（與 ABF 原行為一致）
+function stGrp(xi){ const z=LC.layout.zones; for(let i=0;i<z.length;i++) if(xi<=z[i][1]) return i; return z.length-1; }
+
+// AGV 圖例：綠=載滿框、橘=載空框、灰=空手
+function drawAgvLegend(tg, lx, ly){
+  const hd=ns('text');hd.setAttribute('x',lx-2);hd.setAttribute('y',ly-5);
+  hd.setAttribute('class','slb');hd.setAttribute('style','fill:#5a6a85;font-size:10px;text-anchor:start');
+  hd.textContent='AGV 圖例：'; tg.appendChild(hd);
+  const items=[
+    {col:'#00c853',sc:'#0a6b2e',txt:'載滿框'},
+    {col:'#ff9800',sc:'#b35e00',txt:'載空框'},
+    {col:'#eef2f8',sc:'#90a0bc',txt:'空手'},
+  ];
+  items.forEach((it,k)=>{
+    const ox=lx+k*96;
+    const cc=ns('circle');cc.setAttribute('cx',ox+7);cc.setAttribute('cy',ly+7);cc.setAttribute('r',8);
+    cc.setAttribute('fill',it.col);cc.setAttribute('stroke',it.sc);cc.setAttribute('stroke-width','2');tg.appendChild(cc);
+    const lt=ns('text');lt.setAttribute('x',ox+20);lt.setAttribute('y',ly+11);
+    lt.setAttribute('class','slb');lt.setAttribute('style','fill:#33405a;font-size:11px;text-anchor:start');
+    lt.textContent=it.txt; tg.appendChild(lt);
+  });
+}
+function buildABFSVG(){
+  const tg=document.getElementById('abf-tracks');
+  const sg=document.getElementById('abf-stations');
+  tg.innerHTML=''; sg.innerHTML='';
+
+  const MAIN_XI_COUNT=LC.layout.xiCount;
+  const gap=LC.layout.gap || (EX-SX)/(MAIN_XI_COUNT-1);
+
+  // ── Group zone backgrounds ──（由 LC.layout.zones / GRP_CLR 驅動，組數不限）
+  const zoneXi=LC.layout.zones;
+  const agvLbls=LC.layout.agvLbls;
+  if(LC.layout.type==='serpentine'){
+    // 蛇形：每組以其站點 bounding box 畫 zone + 標籤（可跨列）
+    for(let gi=0;gi<zoneXi.length;gi++){
+      const mem=abfSt.filter(s=>stGrp(s.xi)===gi);
+      if(!mem.length) continue;
+      const xs=mem.map(s=>s.x), ys=mem.map(s=>s.y);
+      const x0=Math.min(...xs)-105, x1=Math.max(...xs)+105;
+      const y0=Math.min(...ys)-120, y1=Math.max(...ys)+118;
+      const zr=ns('rect');
+      zr.setAttribute('x',x0);zr.setAttribute('y',y0);zr.setAttribute('width',x1-x0);zr.setAttribute('height',y1-y0);zr.setAttribute('rx',10);
+      zr.setAttribute('fill',GRP_CLR[gi].zone);zr.setAttribute('stroke',GRP_CLR[gi].zs.replace('30','50'));zr.setAttribute('stroke-width','1.5');
+      tg.appendChild(zr);
+      const cx=(x0+x1)/2;
+      const gl=ns('text');gl.setAttribute('x',cx);gl.setAttribute('y',y0+16);gl.setAttribute('class','slb');
+      gl.setAttribute('style',`fill:${GRP_CLR[gi].lbl};font-size:15px;font-weight:700;opacity:0.95`);gl.textContent=GRP_CLR[gi].name;tg.appendChild(gl);
+      const al=ns('text');al.setAttribute('x',cx);al.setAttribute('y',y0+30);al.setAttribute('class','slb');
+      al.setAttribute('style',`fill:${GRP_CLR[gi].lbl};font-size:10px;opacity:0.8`);al.textContent=agvLbls[gi];tg.appendChild(al);
+    }
+  } else {
+    const zoneY=42, zoneH=820;
+    for(let gi=0;gi<zoneXi.length;gi++){
+      const [x0i,x1i]=zoneXi[gi];
+      const zx=SX+x0i*gap-gap*0.45, zw=(x1i-x0i)*gap+gap*0.9;
+      const zr=ns('rect');
+      zr.setAttribute('x',zx); zr.setAttribute('y',zoneY);
+      zr.setAttribute('width',zw); zr.setAttribute('height',zoneH);
+      zr.setAttribute('rx',10);
+      zr.setAttribute('fill',GRP_CLR[gi].zone);
+      zr.setAttribute('stroke',GRP_CLR[gi].zs.replace('30','50'));
+      zr.setAttribute('stroke-width','1.5');
+      tg.appendChild(zr);
+      const glx=SX+(x0i+x1i)/2*gap;
+      const gl=ns('text');
+      gl.setAttribute('x',glx); gl.setAttribute('y',60);
+      gl.setAttribute('class','slb');
+      gl.setAttribute('style',`fill:${GRP_CLR[gi].lbl};font-size:16px;font-weight:700;opacity:0.95`);
+      gl.textContent=GRP_CLR[gi].name; tg.appendChild(gl);
+      const al=ns('text');
+      al.setAttribute('x',glx); al.setAttribute('y',75);
+      al.setAttribute('class','slb');
+      al.setAttribute('style',`fill:${GRP_CLR[gi].lbl};font-size:11px;opacity:0.8`);
+      al.textContent=agvLbls[gi]; tg.appendChild(al);
+    }
+  }
+
+  // ── Tracks ──（站點軌道錨點 a.tfy/a.tyr 連接；ABF 單列→水平、SMK 蛇形→含轉列）
+  const mainSt=abfSt.filter(s=>s.sub===0);
+  for(let i=0;i<mainSt.length-1;i++){
+    const a=mainSt[i], b=mainSt[i+1];
+    const gi=segGrp(a.xi);
+    const clr=GRP_CLR[gi];
+    // Forward track
+    const lf=ns('line');
+    lf.setAttribute('x1',a.x);lf.setAttribute('y1',a.tfy);
+    lf.setAttribute('x2',b.x);lf.setAttribute('y2',b.tfy);
+    lf.setAttribute('stroke',clr.fwd);lf.setAttribute('stroke-width','3');
+    lf.setAttribute('fill','none'); tg.appendChild(lf);
+    // Return track
+    const lr=ns('line');
+    lr.setAttribute('x1',a.x);lr.setAttribute('y1',a.tyr);
+    lr.setAttribute('x2',b.x);lr.setAttribute('y2',b.tyr);
+    lr.setAttribute('stroke',clr.ret);lr.setAttribute('stroke-width','2');
+    lr.setAttribute('stroke-dasharray','6 4');lr.setAttribute('fill','none');
+    tg.appendChild(lr);
+    // Direction arrow at midpoint —— 依實際流向（站序 a→b）：右▶ / 左◀ / 轉列▼▲
+    const mx=(a.x+b.x)/2, my=(a.tfy+b.tfy)/2;
+    let dir='▶';
+    if(Math.abs(b.x-a.x) < 8) dir = (b.tfy>a.tfy ? '▼' : '▲'); // 垂直轉列
+    else dir = (b.x>a.x ? '▶' : '◀');
+    const arr=ns('text');
+    arr.setAttribute('x',mx);arr.setAttribute('y',my-5);
+    arr.setAttribute('class','slb');
+    arr.setAttribute('style',`fill:${clr.fwd};font-size:13px;opacity:0.9`);
+    arr.textContent=dir; tg.appendChild(arr);
+  }
+  // Vertical connector lines for sub>0 stations
+  for(const s of abfSt){
+    if(s.sub===0) continue;
+    const gi=stGrp(s.xi);
+    const vc=ns('line');
+    vc.setAttribute('x1',s.x);vc.setAttribute('y1',ABF_TY_FWD+2);
+    vc.setAttribute('x2',s.x);vc.setAttribute('y2',s.y-88);
+    vc.setAttribute('stroke',GRP_CLR[gi].fwd);
+    vc.setAttribute('stroke-width','2');
+    vc.setAttribute('stroke-dasharray','5 4');
+    tg.appendChild(vc);
+    // Small junction dot
+    const dot=ns('circle');
+    dot.setAttribute('cx',s.x);dot.setAttribute('cy',ABF_TY_FWD);
+    dot.setAttribute('r','4');dot.setAttribute('fill',GRP_CLR[gi].fwd);
+    tg.appendChild(dot);
+  }
+
+  // ── Legend ─────────────────────────────────────────────────
+  {
+    const lx=SX, ly=LC.layout.legendY||838;
+    const items=[
+      {col:'#d6f5e0',sc:'#00a040',txt:'滿框'},
+      {col:'#ffe3c2',sc:'#d9600a',txt:'空框'},
+      {col:'#d6e8ff',sc:'#1565c0',txt:'加工中'},
+      {col:'#e8f7ee',sc:'#5cb87f',txt:'已預訂'},
+      {col:'#eef2f8',sc:'#c5d0e0',txt:'空位'},
+    ];
+    items.forEach((it,k)=>{
+      const ox=lx+k*95;
+      const lr=ns('rect');lr.setAttribute('x',ox);lr.setAttribute('y',ly);
+      lr.setAttribute('width',14);lr.setAttribute('height',14);lr.setAttribute('rx',3);
+      lr.setAttribute('fill',it.col);lr.setAttribute('stroke',it.sc);lr.setAttribute('stroke-width','1.5');
+      tg.appendChild(lr);
+      const lt=ns('text');lt.setAttribute('x',ox+18);lt.setAttribute('y',ly+11);
+      lt.setAttribute('class','slb');lt.setAttribute('style','fill:#33405a;font-size:11px;text-anchor:start');
+      lt.textContent=it.txt; tg.appendChild(lt);
+    });
+    const lhd=ns('text');lhd.setAttribute('x',lx-2);lhd.setAttribute('y',ly-5);
+    lhd.setAttribute('class','slb');lhd.setAttribute('style','fill:#5a6a85;font-size:10px;text-anchor:start');
+    lhd.textContent='框狀態圖例：'; tg.appendChild(lhd);
+    drawAgvLegend(tg, lx+5*95+30, ly); // AGV 圖例（同列右側）
+  }
+
+  // ── Stations ────────────────────────────────────────────────
+  for(let i=0;i<abfSt.length;i++){
+    const s=abfSt[i];
+    const g=ns('g'); g.setAttribute('id',`abf-stn-${i}`);
+    const gi=stGrp(s.xi);
+    const gc=GRP_CLR[gi];
+
+    if(s.mtype==='refill'){
+      const bw=132,bh=108;
+      // Group glow
+      const gl=ns('rect');
+      gl.setAttribute('x',s.x-bw/2-3);gl.setAttribute('y',s.y-bh/2-3);
+      gl.setAttribute('width',bw+6);gl.setAttribute('height',bh+6);gl.setAttribute('rx',9);
+      gl.setAttribute('fill','none');gl.setAttribute('stroke',gc.lbl);gl.setAttribute('stroke-width','1');
+      gl.setAttribute('opacity','0.3'); g.appendChild(gl);
+      const r=ns('rect');
+      r.setAttribute('x',s.x-bw/2);r.setAttribute('y',s.y-bh/2);
+      r.setAttribute('width',bw);r.setAttribute('height',bh);r.setAttribute('rx',7);
+      r.setAttribute('fill','#ffffff');r.setAttribute('stroke',gc.lbl);r.setAttribute('stroke-width','2');
+      g.appendChild(r);
+      // Header strip
+      const hd=ns('rect');
+      hd.setAttribute('x',s.x-bw/2);hd.setAttribute('y',s.y-bh/2);
+      hd.setAttribute('width',bw);hd.setAttribute('height',22);hd.setAttribute('rx',7);
+      hd.setAttribute('fill',gc.fwd);hd.setAttribute('opacity','0.35'); g.appendChild(hd);
+      const nt=ns('text');nt.setAttribute('x',s.x);nt.setAttribute('y',s.y-bh/2+13);
+      nt.setAttribute('class','slb');nt.setAttribute('style',`font-weight:bold;font-size:14px;fill:${gc.lbl}`);
+      nt.textContent=s.name; g.appendChild(nt);
+      addStnUphLabel(g, i, s.x, s.y-bh/2+32, 12);
+      const mt=ns('text');mt.setAttribute('x',s.x);mt.setAttribute('y',s.y-bh/2+48);
+      mt.setAttribute('class','slb');mt.setAttribute('id',`abf-timer-${i}`);
+      mt.setAttribute('style',`fill:${gc.lbl};font-size:11px`);mt.textContent='⏱ idle'; g.appendChild(mt);
+      const sy=s.y+18;
+      makeSlot(g, s.x-38, sy, `abf-slot-${i}-recv`, '收空框', 26, 26);
+      makeArrow(g, s.x-24, sy, s.x-14, gc.fwd);
+      makeSlot(g, s.x,    sy, `abf-slot-${i}-proc`, '空框放置', 26, 26);
+      makeArrow(g, s.x+14, sy, s.x+24, gc.fwd);
+      makeSlot(g, s.x+38, sy, `abf-slot-${i}-out`,  '出滿框', 26, 26);
+
+    } else if(s.mtype==='transfer'){
+      const bw=192,bh=168;
+      const gl=ns('rect');
+      gl.setAttribute('x',s.x-bw/2-3);gl.setAttribute('y',s.y-bh/2-3);
+      gl.setAttribute('width',bw+6);gl.setAttribute('height',bh+6);gl.setAttribute('rx',9);
+      gl.setAttribute('fill','none');gl.setAttribute('stroke',gc.lbl);gl.setAttribute('stroke-width','1');
+      gl.setAttribute('opacity','0.25'); g.appendChild(gl);
+      const r=ns('rect');
+      r.setAttribute('x',s.x-bw/2);r.setAttribute('y',s.y-bh/2);
+      r.setAttribute('width',bw);r.setAttribute('height',bh);r.setAttribute('rx',7);
+      r.setAttribute('fill','#ffffff');r.setAttribute('stroke',gc.lbl);r.setAttribute('stroke-width','2');
+      g.appendChild(r);
+      // Header strip
+      const hd=ns('rect');
+      hd.setAttribute('x',s.x-bw/2);hd.setAttribute('y',s.y-bh/2);
+      hd.setAttribute('width',bw);hd.setAttribute('height',22);hd.setAttribute('rx',7);
+      hd.setAttribute('fill',gc.fwd);hd.setAttribute('opacity','0.35'); g.appendChild(hd);
+      const nt=ns('text');nt.setAttribute('x',s.x);nt.setAttribute('y',s.y-bh/2+13);
+      nt.setAttribute('class','slb');nt.setAttribute('style',`font-weight:bold;font-size:14px;fill:${gc.lbl}`);
+      nt.textContent=s.name; g.appendChild(nt);
+      const mt=ns('text');mt.setAttribute('x',s.x+bw/2-8);mt.setAttribute('y',s.y-bh/2+13);
+      mt.setAttribute('id',`abf-timer-${i}`);
+      mt.setAttribute('style',`fill:${gc.lbl};font-size:10px;text-anchor:end`);mt.textContent='⏱ idle'; g.appendChild(mt);
+      addStnUphLabel(g, i, s.x, s.y-bh/2+31, 12);
+
+      // Divider with labels
+      const dv=ns('line');
+      dv.setAttribute('x1',s.x-92);dv.setAttribute('y1',s.y+4);
+      dv.setAttribute('x2',s.x+92);dv.setAttribute('y2',s.y+4);
+      dv.setAttribute('stroke','#cdd8e8');dv.setAttribute('stroke-width','1'); g.appendChild(dv);
+
+      function seclbl(tx,ty,txt){
+        const sl=ns('text');sl.setAttribute('x',tx);sl.setAttribute('y',ty);
+        sl.setAttribute('class','slb');
+        sl.setAttribute('style','fill:#5a6a85;font-size:10px;font-weight:600');
+        sl.textContent=txt; g.appendChild(sl);
+      }
+      seclbl(s.x-68, s.y-bh/2+46, '↓ 入料端');
+      seclbl(s.x-68, s.y+18, '↑ 出料端');
+
+      const ry1=s.y-bh/2+66;
+      makeSlot(g, s.x-52, ry1, `abf-slot-${i}-in_full`, '入滿框', 30, 26);
+      makeArrow(g, s.x-36, ry1, s.x-17, gc.fwd);
+      makeSlot(g, s.x,     ry1, `abf-slot-${i}-in_proc`, '拿料位', 30, 26);
+      makeArrow(g, s.x+17, ry1, s.x+36, gc.fwd);
+      makeSlot(g, s.x+52, ry1, `abf-slot-${i}-in_ret`,  '退空框', 30, 26);
+
+      const ry2=s.y+36;
+      makeSlot(g, s.x-52, ry2, `abf-slot-${i}-out_recv`, '收空框', 30, 26);
+      makeArrow(g, s.x-36, ry2, s.x-17, gc.fwd);
+      makeSlot(g, s.x,     ry2, `abf-slot-${i}-out_proc`, '放置位', 30, 26);
+      makeArrow(g, s.x+17, ry2, s.x+36, gc.fwd);
+      makeSlot(g, s.x+52, ry2, `abf-slot-${i}-out_full`, '出滿框', 30, 26);
+
+    } else if(s.buf){
+      const bw=110,bh=86;
+      const r=ns('rect');
+      r.setAttribute('x',s.x-bw/2);r.setAttribute('y',s.y-bh/2);
+      r.setAttribute('width',bw);r.setAttribute('height',bh);r.setAttribute('rx',7);
+      r.setAttribute('fill','#ffffff');r.setAttribute('stroke',gc.lbl);r.setAttribute('stroke-width','1.5');
+      g.appendChild(r);
+      const hd=ns('rect');
+      hd.setAttribute('x',s.x-bw/2);hd.setAttribute('y',s.y-bh/2);
+      hd.setAttribute('width',bw);hd.setAttribute('height',20);hd.setAttribute('rx',7);
+      hd.setAttribute('fill',gc.fwd);hd.setAttribute('opacity','0.3'); g.appendChild(hd);
+      const nt=ns('text');nt.setAttribute('x',s.x);nt.setAttribute('y',s.y-bh/2+12);
+      nt.setAttribute('class','slb');nt.setAttribute('style',`font-size:12px;font-weight:bold;fill:${gc.lbl}`);
+      nt.textContent=s.name; g.appendChild(nt);
+      addStnUphLabel(g, i, s.x, s.y-bh/2+30, 10);
+      const wt=ns('text');wt.setAttribute('x',s.x);wt.setAttribute('y',s.y+8);
+      wt.setAttribute('class','slb');wt.setAttribute('style','fill:#b8860b;font-size:15px;font-weight:bold');
+      wt.setAttribute('id',`abf-buf-${i}`);wt.textContent=`0/${s.buf}`; g.appendChild(wt);
+      const bx=ns('rect');bx.setAttribute('x',s.x-44);bx.setAttribute('y',s.y+16);
+      bx.setAttribute('width',88);bx.setAttribute('height',7);bx.setAttribute('rx',3);
+      bx.setAttribute('fill','#e3e9f2'); g.appendChild(bx);
+      const bf=ns('rect');bf.setAttribute('x',s.x-44);bf.setAttribute('y',s.y+16);
+      bf.setAttribute('width',0);bf.setAttribute('height',7);bf.setAttribute('rx',3);
+      bf.setAttribute('fill',gc.lbl);bf.setAttribute('id',`abf-bar-${i}`); g.appendChild(bf);
+
+    } else if(s.mtype==='changer'){
+      const bw=156,bh=110;
+      const gl=ns('rect');
+      gl.setAttribute('x',s.x-bw/2-3);gl.setAttribute('y',s.y-bh/2-3);
+      gl.setAttribute('width',bw+6);gl.setAttribute('height',bh+6);gl.setAttribute('rx',9);
+      gl.setAttribute('fill','none');gl.setAttribute('stroke',gc.lbl);gl.setAttribute('stroke-width','1');
+      gl.setAttribute('opacity','0.25'); g.appendChild(gl);
+      const r=ns('rect');
+      r.setAttribute('x',s.x-bw/2);r.setAttribute('y',s.y-bh/2);
+      r.setAttribute('width',bw);r.setAttribute('height',bh);r.setAttribute('rx',7);
+      r.setAttribute('fill','#ffffff');r.setAttribute('stroke',gc.lbl);r.setAttribute('stroke-width','2');
+      g.appendChild(r);
+      const hd=ns('rect');
+      hd.setAttribute('x',s.x-bw/2);hd.setAttribute('y',s.y-bh/2);
+      hd.setAttribute('width',bw);hd.setAttribute('height',22);hd.setAttribute('rx',7);
+      hd.setAttribute('fill',gc.fwd);hd.setAttribute('opacity','0.35'); g.appendChild(hd);
+      const nt=ns('text');nt.setAttribute('x',s.x);nt.setAttribute('y',s.y-bh/2+13);
+      nt.setAttribute('class','slb');nt.setAttribute('style',`font-weight:bold;font-size:14px;fill:${gc.lbl}`);
+      nt.textContent=s.name; g.appendChild(nt);
+      addStnUphLabel(g, i, s.x, s.y-bh/2+32, 12);
+      const mt=ns('text');mt.setAttribute('x',s.x);mt.setAttribute('y',s.y-bh/2+48);
+      mt.setAttribute('class','slb');mt.setAttribute('id',`abf-timer-${i}`);
+      mt.setAttribute('style',`fill:${gc.lbl};font-size:11px`);mt.textContent='⏱ idle'; g.appendChild(mt);
+      const ry=s.y+24;
+      makeSlot(g,s.x-46,ry,`abf-slot-${i}-in_full`,'入滿框',30,26);
+      makeArrow(g,s.x-30,ry,s.x-17,gc.fwd);
+      makeSlot(g,s.x,    ry,`abf-slot-${i}-in_proc`,'拿料位',30,26);
+      makeArrow(g,s.x+17,ry,s.x+30,gc.fwd);
+      makeSlot(g,s.x+46, ry,`abf-slot-${i}-in_ret`, '退空框',30,26);
+    }
+
+    // 站別 UPH tooltip hover
+    g.style.cursor='help';
+    g.addEventListener('mouseenter',e=>showStnTip(i,e));
+    g.addEventListener('mousemove',e=>moveStnTip(e));
+    g.addEventListener('mouseleave',hideStnTip);
+
+    sg.appendChild(g);
+  }
+}
+
+// ── 站別 UPH tooltip ──
+// 站別平均 UPH（總產出 ÷ 已涵蓋小時，當前未滿小時按比例計）
+function stnAvgUPH(i){
+  const s=abfSt[i]; if(!s||!s.prodHist) return 0;
+  const total=s.prodHist.reduce((a,b)=>a+(b||0),0);
+  if(total===0) return 0;
+  const curH=Math.floor(simT/3600);
+  const hoursCovered=curH+Math.min(1,(simT%3600)/3600);
+  return hoursCovered>0?Math.round(total/hoursCovered):0;
+}
+function stnTipHTML(i){
+  const s=abfSt[i]; if(!s) return '';
+  const hist=s.prodHist||[];
+  const curH=Math.floor(simT/3600);
+  const maxH=Math.max(curH, hist.length-1);
+  let rows='', anyData=false;
+  for(let h=0;h<=maxH;h++){
+    const v=hist[h]||0; if(v>0) anyData=true;
+    if(h>curH && v===0) continue;
+    const isNow=(h===curH);
+    rows+=`<div class="tt-r${isNow?' tt-now':''}"><span>${h}~${h+1}hr</span>`
+        +`<span>${v}${isNow?' <span class="tt-dim">← 現在</span>':''}</span></div>`;
+  }
+  if(!anyData){ return `<div class="tt-h">${s.name}</div><div class="tt-dim">尚無產出</div>`; }
+  return `<div class="tt-h">${s.name}</div>${rows}`
+        +`<div class="tt-r tt-avg"><span>平均</span><span>${stnAvgUPH(i)} /hr</span></div>`;
+}
+// 站別平均 UPH 常駐標籤（置中，放在站名下方）
+function addStnUphLabel(g, i, x, y, size){
+  const u=ns('text');
+  u.setAttribute('x',x); u.setAttribute('y',y);
+  u.setAttribute('id',`abf-uph-${i}`);
+  u.setAttribute('style',`fill:#00922f;font-size:${size}px;font-weight:bold;text-anchor:middle`);
+  u.textContent='—'; g.appendChild(u);
+}
+function showStnTip(i,e){
+  if(dragging) return;
+  const t=document.getElementById('stn-tip'); if(!t) return;
+  t.innerHTML=stnTipHTML(i); t.dataset.stn=i; t.style.display='block';
+  moveStnTip(e);
+}
+function moveStnTip(e){
+  const t=document.getElementById('stn-tip'); if(!t||t.style.display==='none') return;
+  if(t.dataset.stn!=null) t.innerHTML=stnTipHTML(+t.dataset.stn); // 內容隨模擬即時更新
+  let x=e.clientX+14, y=e.clientY+14;
+  const w=t.offsetWidth, h=t.offsetHeight;
+  if(x+w>innerWidth-8) x=e.clientX-w-14;
+  if(y+h>innerHeight-8) y=innerHeight-h-8;
+  t.style.left=x+'px'; t.style.top=y+'px';
+}
+function hideStnTip(){ const t=document.getElementById('stn-tip'); if(t) t.style.display='none'; }
+
+// ── AGV 稼動看板 ──
+let agvBoardOpen=false;
+function toggleAgvBoard(){
+  agvBoardOpen=!agvBoardOpen;
+  const el=document.getElementById('agv-board');
+  if(el) el.classList.toggle('show',agvBoardOpen);
+  if(agvBoardOpen) renderAgvBoard();
+}
+function renderAgvBoard(){
+  const body=document.getElementById('agv-board-body'); if(!body) return;
+  let sumM=0,sumH=0,sumI=0;
+  const rows=abfAGVs.map(a=>{
+    const mv=a.tMove||0, hd=a.tHandle||0, id=a.tIdle||0;
+    const act=mv+hd, denom=act+id;
+    const util=denom>0?act/denom:0;
+    sumM+=mv; sumH+=hd; sumI+=id;
+    const pct=Math.round(util*100);
+    return `<tr><td>${a.id}</td><td>${fmt(mv)}</td><td>${fmt(hd)}</td><td>${fmt(id)}</td>`
+      +`<td>${pct}%<span class="ub"><i style="width:${pct}%"></i></span></td></tr>`;
+  }).join('');
+  const tAct=sumM+sumH, tDen=tAct+sumI;
+  const avgUtil=tDen>0?Math.round(tAct/tDen*100):0;
+  const totRow=`<tr class="tot"><td>總計</td><td>${fmt(sumM)}</td><td>${fmt(sumH)}</td><td>${fmt(sumI)}</td>`
+      +`<td>${avgUtil}%<span class="ub"><i style="width:${avgUtil}%"></i></span></td></tr>`;
+  body.innerHTML=`<table><thead><tr><th>車</th><th>移動</th><th>取放</th><th>閒置</th><th>稼動率</th></tr></thead>`
+      +`<tbody>${rows}${totRow}</tbody></table>`;
+}
+
+function buildABFAgvSVG(){
+  const el=document.getElementById('abf-agvs');el.innerHTML='';
+  for(const a of abfAGVs){
+    const gi=a.grp-1;
+    const gc=GRP_CLR[gi]||GRP_CLR[0];
+    const g=ns('g');g.setAttribute('id',`agv-${a.id}`);
+    // Group color ring (outer)
+    const ring=ns('circle');ring.setAttribute('r','15');
+    ring.setAttribute('fill','none');ring.setAttribute('stroke',gc.lbl);
+    ring.setAttribute('stroke-width','2');ring.setAttribute('opacity','0.5');
+    ring.setAttribute('id',`aring-${a.id}`); g.appendChild(ring);
+    // Main body
+    const c=ns('circle');c.setAttribute('r','12');c.setAttribute('id',`ac-${a.id}`);
+    c.setAttribute('style','fill:#ffffff;stroke:#90a0bc;stroke-width:1.5');g.appendChild(c);
+    // ID label
+    const t=ns('text');t.setAttribute('class','slb');t.setAttribute('dy','0.35em');
+    t.setAttribute('id',`at-${a.id}`);
+    t.setAttribute('style','font-size:10px;font-weight:bold');t.textContent=a.id;g.appendChild(t);
+    // Cargo badge（車頂載貨標記，放大）
+    const cd=ns('polygon');
+    cd.setAttribute('points','0,-27 10,-16 0,-5 -10,-16');
+    cd.setAttribute('id',`acd-${a.id}`);
+    cd.setAttribute('fill','none');cd.setAttribute('stroke','none');
+    g.appendChild(cd);
+    // Status label below
+    const lbl=ns('text');lbl.setAttribute('class','slb');
+    lbl.setAttribute('y','26');lbl.setAttribute('style','font-size:9px;font-weight:bold;fill:#c79100');
+    lbl.setAttribute('id',`albl-${a.id}`);lbl.textContent='';g.appendChild(lbl);
+    el.appendChild(g);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// UI UPDATE
+// ══════════════════════════════════════════════════════════════
+
+// Slot color definitions
+const SLOT_COLORS={
+  full:        {fill:'#d6f5e0',stroke:'#00a040',sym:'●',sc:'#00922f'}, // 滿框 (綠)
+  reserved:    {fill:'#e8f7ee',stroke:'#5cb87f',sym:'◌',sc:'#3a9c5f'}, // 已預訂 (淡綠)
+  empty_frame: {fill:'#ffe3c2',stroke:'#e07a00',sym:'○',sc:'#cc6600'}, // 空框 (橘)
+  processing:  {fill:'#d6e8ff',stroke:'#1976d2',sym:'▶',sc:'#1565c0'}, // 加工中 (藍)
+  none:        {fill:'#eef2f8',stroke:'#c5d0e0',sym:'',sc:'#c5d0e0'},   // 空位
+};
+
+function applySlotColor(id, state){
+  const r=document.getElementById(id);
+  const v=document.getElementById(id+'-v');
+  if(!r) return;
+  const c=SLOT_COLORS[state]||SLOT_COLORS.none;
+  r.setAttribute('fill',c.fill);
+  r.setAttribute('stroke',c.stroke);
+  r.setAttribute('stroke-width', state==='none'?'1.5':'2');
+  if(v){
+    v.textContent=c.sym||'';
+    v.setAttribute('style',`font-size:13px;font-weight:bold;fill:${c.sc}`);
+  }
+}
+
+function updateUI(){
+  document.getElementById('clk').textContent=fmt(simT);
+
+  if(viewMode==='simple'){
+    updateSimpleUI();
+    const _u=calcUPH(abfOut,simT,curBatch());
+    updateProgressAndStats(abfPcs, selectedLine==='abf'?_u:null, selectedLine==='smk'?_u:null);
+    refreshBottleneck();
+    if(agvBoardOpen) renderAgvBoard();
+    return;
+  }
+
+  // ABF stations
+  // 作用線（ABF 或 SMK）一律走 ABF 式站別/AGV 渲染
+  for(let i=0;i<abfSt.length;i++){
+    const s=abfSt[i];
+    if(s.mtype==='refill'){
+      const mt=document.getElementById(`abf-timer-${i}`);
+      if(mt){
+        if(s.machineActive && s.machineTimer>0) mt.textContent=`⏱ ${Math.ceil(s.machineTimer)}s`;
+        else if(s.machineActive) mt.textContent='⌛ 等待出料';
+        else if(s.recv_wait>0) mt.textContent=`⌛ 入框 ${Math.ceil(FEED_DELAY-s.recv_wait)}s`;
+        else mt.textContent='⏱ idle';
+      }
+      applySlotColor(`abf-slot-${i}-recv`, s.s_recv?'empty_frame':'none');
+      applySlotColor(`abf-slot-${i}-proc`,
+        s.machineActive?'processing': s.s_proc?'empty_frame':'none');
+      // 出滿框：有框=綠，已預訂（AGV在路上）=淡綠，空=空
+      applySlotColor(`abf-slot-${i}-out`, s.s_out ? (s.s_out_res?'reserved':'full') : 'none');
+    } else if(s.mtype==='transfer'){
+      const mt=document.getElementById(`abf-timer-${i}`);
+      if(mt){
+        if(s.machineActive && s.machineTimer>0) mt.textContent=`⏱ ${Math.ceil(s.machineTimer)}s`;
+        else if(s.in_full_wait>0)   mt.textContent=`⌛ 入料 ${Math.ceil(FEED_DELAY-s.in_full_wait)}s`;
+        else if(s.out_recv_wait>0)  mt.textContent=`⌛ 收框 ${Math.ceil(FEED_DELAY-s.out_recv_wait)}s`;
+        else mt.textContent='⏱ idle';
+      }
+      // 入料端
+      applySlotColor(`abf-slot-${i}-in_full`, s.in_full?'full':'none');
+      // 拿料位：機器中=藍，有料等加工=綠，空=空
+      applySlotColor(`abf-slot-${i}-in_proc`,  s.machineActive?'processing': s.in_proc?'full':'none');
+      // 退空框：機器完成後出現橘色，AGV 取走後消失
+      applySlotColor(`abf-slot-${i}-in_ret`,   s.in_ret?'empty_frame':'none');
+      // 出料端
+      applySlotColor(`abf-slot-${i}-out_recv`, s.out_recv?'empty_frame':'none');
+      // 放置位：機器中=藍，有空框等加工=橘，空=空
+      applySlotColor(`abf-slot-${i}-out_proc`, s.machineActive?'processing': s.out_proc?'empty_frame':'none');
+      // 出滿框：機器完成後出現綠色，AGV 取走後消失
+      applySlotColor(`abf-slot-${i}-out_full`, s.out_full?'full':'none');
+    } else if(s.mtype==='changer'){
+      const mt=document.getElementById(`abf-timer-${i}`);
+      if(mt){
+        if(s.machineActive && s.machineTimer>0) mt.textContent=`⏱ ${Math.ceil(s.machineTimer)}s`;
+        else if(s.in_full_wait>0) mt.textContent=`⌛ 入料 ${Math.ceil(FEED_DELAY-s.in_full_wait)}s`;
+        else mt.textContent='⏱ idle';
+      }
+      applySlotColor(`abf-slot-${i}-in_full`, s.in_full?'full':'none');
+      applySlotColor(`abf-slot-${i}-in_proc`, s.machineActive?'processing': s.in_proc?'full':'none');
+      applySlotColor(`abf-slot-${i}-in_ret`,  s.in_ret?'empty_frame':'none');
+    } else if(s.buf){
+      const wt=document.getElementById(`abf-buf-${i}`);
+      const bar=document.getElementById(`abf-bar-${i}`);
+      const pending = s.pendingFrames ? s.pendingFrames.length : 0;
+      const total = s.fullAvail + pending;
+      if(wt){
+        if(pending > 0){
+          const minLeft = Math.ceil(Math.min(...s.pendingFrames));
+          wt.textContent = `${s.fullAvail}/${s.buf}  (+${pending} ⌛${minLeft}s)`;
+          wt.setAttribute('style','fill:#cc6600;font-size:11px;font-weight:bold');
+        } else {
+          wt.textContent = `${total}/${s.buf}`;
+          wt.setAttribute('style','fill:#b8860b;font-size:14px;font-weight:bold');
+        }
+      }
+      if(bar) bar.setAttribute('width',Math.round(88*Math.min(total/s.buf,1)));
+    }
+  }
+
+  // 站別平均 UPH 常駐標籤
+  for(let i=0;i<abfSt.length;i++){
+    const ue=document.getElementById(`abf-uph-${i}`);
+    if(ue){ const u=stnAvgUPH(i); ue.textContent = u>0 ? `${u} 片/hr` : '—'; }
+  }
+
+  // AGVs（作用線）
+  for(const a of abfAGVs) updateABFAgvPos(a);
+  const _uph=calcUPH(abfOut,simT,curBatch());
+  updateProgressAndStats(abfPcs, selectedLine==='abf'?_uph:null, selectedLine==='smk'?_uph:null);
+  refreshBottleneck();
+  if(agvBoardOpen) renderAgvBoard();
+}
+
+function updateProgressAndStats(tot, au, su){
+  const pct=Math.min(100,tot/P.tg*100);
+  document.getElementById('pb').style.width=pct+'%';
+  document.getElementById('pbl').textContent=`完成 ${tot} / ${P.tg} 片`;
+  if(au!=null) document.getElementById('s-auph').textContent=au>0?`${au} 片/hr`:'—';
+  if(su!=null) document.getElementById('s-suph').textContent=su>0?`${su} 片/hr`:'—';
+  document.getElementById('s-done').textContent=tot+' 片';
+  const uph=(au||0)+(su||0);
+  let etaTxt='—';
+  if(uph>0&&tot<P.tg){ etaTxt=fmt(simT+(P.tg-tot)/uph*3600); }
+  document.getElementById('s-eta').textContent=etaTxt;
+  // mini stats in toggle bar when bot is collapsed
+  const mini=document.getElementById('bot-mini');
+  if(mini){
+    const uphDisp=uph>0?`${uph} 片/hr`:'—';
+    mini.textContent=document.getElementById('bot').classList.contains('collapsed')
+      ? `完成 ${tot} 片　UPH ${uphDisp}　預估完成 ${etaTxt}` : '';
+  }
+  if(cmpState) renderCompareCard(); // 對比卡隨模擬即時更新差值
+}
+
+// AGV 車身上色（飽和色直接表示載貨，與 slot 圖例一致：滿框綠/空框橘）；詳細/精簡共用
+function agvBody(a, c, ring, carrying){
+  let fill,stroke,ringOp='0.6';
+  if(a.stag>0){ fill='#ffd54a'; stroke='#c79100'; }
+  else if(carrying && a.cargo==='full'){ fill='#00c853'; stroke='#0a6b2e'; }   // 載滿框=綠
+  else if(carrying && a.cargo==='empty'){ fill='#ff9800'; stroke='#b35e00'; }   // 載空框=橘
+  else if(a.phase==='picking'){ fill='#eef2f8'; stroke='#00a040'; }             // 取料中（空手）
+  else { fill='#eef2f8'; stroke='#90a0bc'; if(a.phase==='idle')ringOp='0.3'; }  // 空手/去取料/idle
+  c.setAttribute('style',`fill:${fill};stroke:${stroke};stroke-width:2.5`);
+  if(ring) ring.setAttribute('opacity',ringOp);
+}
+function updateABFAgvPos(a){
+  const g=document.getElementById(`agv-${a.id}`);
+  const c=document.getElementById(`ac-${a.id}`);
+  const ring=document.getElementById(`aring-${a.id}`);
+  const cd=document.getElementById(`acd-${a.id}`);
+  if(!g||!c) return;
+
+  let x, ty;
+  if(a.phase==='idle'||a.phase==='picking'||a.phase==='dropping'||a.toPos<0){
+    x  = abfSt[a.pos]?.x||0;
+    ty = abfSt[a.pos]?.y||ABF_TY_FWD;
+  } else {
+    const from=abfSt[a.fromPos], to=abfSt[a.toPos];
+    const sx=from?.x||0, dx=to?.x||0;
+    // 前進軌道：蛇形用站序(下游)、單列用 x 方向（與 ABF 原行為一致）
+    const fwd = LC.layout.type==='serpentine' ? (a.toPos>a.fromPos) : (dx>=sx);
+    const sy = fwd ? (from?.tfy ?? ABF_TY_FWD) : (from?.tyr ?? ABF_TY_RET);
+    const dy = fwd ? (to?.tfy ?? ABF_TY_FWD) : (to?.tyr ?? ABF_TY_RET);
+    x  = sx+(dx-sx)*a.legPos;
+    ty = sy+(dy-sy)*a.legPos;
+  }
+  g.setAttribute('transform',`translate(${Math.round(x)},${Math.round(ty)})`);
+
+  // 車身依「實際載貨」用飽和色：載滿框=鮮綠、載空框=鮮藍、空手=淡灰、等待=琥珀
+  const carrying = (a.phase==='delivering'||a.phase==='dropping');
+  agvBody(a, c, ring, carrying);
+
+  // 車頂載貨標記：載滿框=綠、載空框=橘、空手=隱藏
+  if(cd){
+    if(carrying && a.cargo==='full'){ cd.setAttribute('fill','#00c853');cd.setAttribute('stroke','#0a6b2e');cd.setAttribute('stroke-width','1.5'); }
+    else if(carrying && a.cargo==='empty'){ cd.setAttribute('fill','#ff9800');cd.setAttribute('stroke','#b35e00');cd.setAttribute('stroke-width','1.5'); }
+    else { cd.setAttribute('fill','none');cd.setAttribute('stroke','none'); }
+  }
+
+  const lbl=document.getElementById(`albl-${a.id}`);
+  if(lbl){
+    if(a.phase==='picking')   {lbl.textContent=`取 ${Math.ceil(a.pickWait)}s`;  lbl.setAttribute('style','font-size:9px;font-weight:bold;fill:#00922f');}
+    else if(a.phase==='dropping'){lbl.textContent=`放 ${Math.ceil(a.dropWait)}s`; lbl.setAttribute('style','font-size:9px;font-weight:bold;fill:#1565c0');}
+    else if(a.stag>0)         {lbl.textContent='等待';lbl.setAttribute('style','font-size:9px;font-weight:bold;fill:#c79100');}
+    else                      {lbl.textContent='';}
+  }
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// UPH & CHART
+// ══════════════════════════════════════════════════════════════
+function calcUPH(comps,now,bt){
+  const win=3600,recent=comps.filter(t=>t>now-win);
+  if(!recent.length)return 0;
+  const el=Math.min(now,win);
+  if(el<120)return 0;
+  return Math.round(recent.length*bt/el*3600);
+}
+function updateChart(){
+  const min=Math.floor(simT/60);
+  cdata.labels.push(min);
+  // 作用線產出在 abfOut；推到對應資料集，另一線留 null
+  const uph=calcUPH(abfOut,simT,curBatch());
+  cdata.abf.push(selectedLine==='abf'?uph:null);
+  cdata.smk.push(selectedLine==='smk'?uph:null);
+  if(chart){
+    chart.data.labels=cdata.labels;
+    chart.data.datasets[0].data=cdata.abf;
+    chart.data.datasets[1].data=cdata.smk;
+    chart.update('none');
+  }
+}
+function initChart(){
+  Chart.defaults.color='#5a6a85';
+  chart=new Chart(document.getElementById('uc').getContext('2d'),{
+    type:'line',
+    data:{labels:[],datasets:[
+      {label:'ABF UPH',data:[],borderColor:'#1565c0',backgroundColor:'rgba(21,101,192,.12)',tension:.3,pointRadius:2},
+      {label:'SMK UPH',data:[],borderColor:'#d9600a',backgroundColor:'rgba(217,96,10,.12)',tension:.3,pointRadius:2}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{position:'top',labels:{font:{size:12},boxWidth:12}}},
+      scales:{
+        x:{title:{display:true,text:'模擬時間(分)',font:{size:11}},grid:{color:'#e3e9f2'},ticks:{font:{size:11}}},
+        y:{title:{display:true,text:'UPH(片/小時)',font:{size:11}},grid:{color:'#e3e9f2'},ticks:{font:{size:11}},min:0}
+      }
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// PARAMS
+// ══════════════════════════════════════════════════════════════
+function toggleSB(){document.getElementById('sb').classList.toggle('open');}
+function parseMMSS(s){
+  const p=String(s).split(':');
+  if(p.length===2){const m=+p[0],ss=+p[1];if(!isNaN(m)&&!isNaN(ss)&&m>=0&&ss<60)return m*60+ss;}
+  return null;
+}
+function fmtMMSS(sec){const m=Math.floor(sec/60),s=sec%60;return `${m}:${String(s).padStart(2,'0')}`;}
+
+// ── 參數 metadata：集中定義（取代散落的 applyP/resetP/applyParamsToInputs）──
+// apply: 'live'=即時生效不重置；'resim'=需重新模擬。欄位 id = 'p-'+key
+const PARAM_META=[
+  {key:'abfBt',     label:'每框片數',          unit:'片/框', min:1, step:1,  type:'int', apply:'resim', line:'abf', section:'proc'},
+  {key:'clnTime',   label:'CLN 生產時間',      unit:'秒/框', min:1, step:10, type:'int', apply:'resim', line:'abf', section:'proc'},
+  {key:'czTime',    label:'CZ 處理時間',       unit:'秒/框', min:1, step:10, type:'int', apply:'resim', line:'abf', section:'proc'},
+  {key:'pressTime', label:'ABF壓機 處理時間',  unit:'秒',    min:1, step:10, type:'int', apply:'resim', line:'abf', section:'proc'},
+  {key:'changerTime',label:'換框機 拿料時間',  unit:'秒',    min:1, step:10, type:'int', apply:'resim', line:'abf', section:'proc'},
+  {key:'smkBt',     label:'SMK 每框片數',     unit:'片/框', min:1, step:1,  type:'int', apply:'resim', line:'smk', section:'proc'},
+  {key:'smkCln',    label:'CLN 生產時間',     unit:'秒',    min:1, step:10, type:'int', apply:'resim', line:'smk', section:'proc'},
+  {key:'smkCz',     label:'CZ 處理時間',      unit:'秒',    min:1, step:10, type:'int', apply:'resim', line:'smk', section:'proc'},
+  {key:'smkPress',  label:'SMK壓機 處理時間', unit:'秒',    min:1, step:10, type:'int', apply:'resim', line:'smk', section:'proc'},
+  {key:'smkExp',    label:'曝光機 處理時間',  unit:'秒',    min:1, step:10, type:'int', apply:'resim', line:'smk', section:'proc'},
+  {key:'smkDev',    label:'顯影機 處理時間',  unit:'秒',    min:1, step:10, type:'int', apply:'resim', line:'smk', section:'proc'},
+  {key:'smkUvq',    label:'UVQ 處理時間',     unit:'秒',    min:1, step:10, type:'int', apply:'resim', line:'smk', section:'proc'},
+  {key:'smkChanger',label:'換框機 拿料時間',  unit:'秒',    min:1, step:10, type:'int', apply:'resim', line:'smk', section:'proc'},
+  {key:'pickTime',   label:'取料-機台 CZ/壓機/換框',unit:'秒',min:0, step:5, type:'int', apply:'resim', line:'abf', section:'pickdrop'},
+  {key:'dropTime',   label:'放料-機台 CZ/壓機/換框',unit:'秒',min:0, step:5, type:'int', apply:'resim', line:'abf', section:'pickdrop'},
+  {key:'bufPickTime',label:'取料-緩衝站 Ann/Bak/Post',unit:'秒',min:0,step:5,type:'int',apply:'resim', line:'abf', section:'pickdrop'},
+  {key:'bufDropTime',label:'放料-緩衝站 Ann/Bak/Post',unit:'秒',min:0,step:5,type:'int',apply:'resim', line:'abf', section:'pickdrop'},
+  {key:'t01',label:'CLN ↔ Annealing',     unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'abf',section:'route',seg:'0_1'},
+  {key:'t12',label:'Annealing ↔ CZ',      unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'abf',section:'route',seg:'1_2'},
+  {key:'t02',label:'CLN ↔ CZ 直達',       unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'abf',section:'route',seg:'0_2'},
+  {key:'t23',label:'CZ ↔ Baking',         unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'abf',section:'route',seg:'2_3'},
+  {key:'t34',label:'Baking ↔ ABF壓機',    unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'abf',section:'route',seg:'3_4'},
+  {key:'t45',label:'ABF壓機 ↔ Postcure',  unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'abf',section:'route',seg:'4_5'},
+  {key:'t24',label:'CZ ↔ ABF壓機 直達',   unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'abf',section:'route',seg:'2_4'},
+  {key:'t56',label:'Postcure ↔ 換框機',   unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'abf',section:'route',seg:'5_6'},
+  {key:'t46',label:'ABF壓機 ↔ 換框機 直達',unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'abf',section:'route',seg:'4_6'},
+  {key:'smkPick',    label:'取料-機台 CZ/壓機/曝光/顯影/UVQ/換框',unit:'秒',min:0,step:5,type:'int',apply:'resim',line:'smk',section:'pickdrop'},
+  {key:'smkDrop',    label:'放料-機台 CZ/壓機/曝光/顯影/UVQ/換框',unit:'秒',min:0,step:5,type:'int',apply:'resim',line:'smk',section:'pickdrop'},
+  {key:'smkBufPick', label:'取料-緩衝站 Ann/Bak/SoftBak/Post',unit:'秒',min:0,step:5,type:'int',apply:'resim',line:'smk',section:'pickdrop'},
+  {key:'smkBufDrop', label:'放料-緩衝站 Ann/Bak/SoftBak/Post',unit:'秒',min:0,step:5,type:'int',apply:'resim',line:'smk',section:'pickdrop'},
+  {key:'smkR0',label:'CLN ↔ Annealing',     unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'s0'},
+  {key:'smkR1',label:'Annealing ↔ CZ',      unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'s1'},
+  {key:'smkR2',label:'CZ ↔ Baking',         unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'s2'},
+  {key:'smkR3',label:'Baking ↔ SMK壓機',    unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'s3'},
+  {key:'smkR4',label:'SMK壓機 ↔ 曝光機',    unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'s4'},
+  {key:'smkR5',label:'曝光機 ↔ 顯影機',     unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'s5'},
+  {key:'smkR6',label:'顯影機 ↔ SoftBaking', unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'s6'},
+  {key:'smkR7',label:'SoftBaking ↔ UVQ',    unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'s7'},
+  {key:'smkR8',label:'UVQ ↔ Postcure',      unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'s8'},
+  {key:'smkR9',label:'Postcure ↔ 換框機',   unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'s9'},
+  {key:'smkD02', label:'CZ ↔ CLN 直達（回程）',     unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'d02'},
+  {key:'smkD24', label:'SMK壓機 ↔ CZ 直達（回程）', unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'d24'},
+  {key:'smkD68', label:'UVQ ↔ 顯影機 直達（回程）', unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'d68'},
+  {key:'smkD810',label:'換框機 ↔ UVQ 直達（回程）', unit:'秒',min:1,step:10,type:'int',apply:'resim',line:'smk',section:'route',seg:'d810'},
+];
+const TG_META={key:'tg',label:'🎯 目標產量',unit:'片',min:1,step:100,type:'int',apply:'live',line:'both',section:'goal'};
+const ALL_META=PARAM_META.concat([TG_META]);
+const PARAM_BY_KEY=Object.fromEntries(ALL_META.map(m=>[m.key,m]));
+const SECTIONS=[
+  {id:'proc',     title:'⏱ 製程時間',     tag:'resim'},
+  {id:'pickdrop', title:'🤖 取放料時間',   tag:'resim'},
+  {id:'route',    title:'🛣 路段行走時間', tag:'resim', map:true},
+  {id:'live',     title:'⚡ 即時參數',     tag:'live'},
+];
+const SEG_TO_KEY={'0_1':'t01','1_2':'t12','0_2':'t02','2_3':'t23','3_4':'t34','4_5':'t45','2_4':'t24','5_6':'t56','4_6':'t46'};
+
+let scnStore=null, cmpState=null, liveMarks=[];
+
+// ── 面板渲染（資料驅動）──
+function fieldHTML(m){
+  const id='p-'+m.key;
+  const tag=m.apply==='live'?'<span class="ptag live">⚡即時</span>':'<span class="ptag resim">↻重跑</span>';
+  const unit=m.unit?`<span class="unit">${m.unit}</span>`:'';
+  let input;
+  if(m.type==='mmss'){
+    input=`<input id="${id}" data-key="${m.key}" inputmode="text">`;
+  } else {
+    input=`<div class="stp">`
+      +`<button type="button" tabindex="-1" onclick="stepField('${m.key}',-1)">−</button>`
+      +`<input id="${id}" data-key="${m.key}" type="number" inputmode="numeric"${m.min!=null?` min="${m.min}"`:''}${m.max!=null?` max="${m.max}"`:''}>`
+      +`<button type="button" tabindex="-1" onclick="stepField('${m.key}',1)">＋</button></div>`;
+  }
+  return `<div class="pg" id="pg-${m.key}" data-line="${m.line}"><label>${m.label}${unit}${tag}</label>${input}<div class="err"></div></div>`;
+}
+function renderParamPanel(){
+  if(!scnStore) scnStore=loadScenarioStore();
+  const scroll=document.getElementById('sb-scroll');
+  const opts=Object.keys(scnStore.presets).map(n=>`<option value="${n}">${n}</option>`).join('');
+  let html=`<div id="sbttl" style="margin-bottom:10px">⚙ 模擬參數</div>`;
+  html+=`<div class="phd"><label style="font-size:11px;color:var(--dim);display:block;margin-bottom:4px">📋 情境</label>`
+    +`<select id="scenario-sel" onchange="onScenarioPick(this.value)">${opts}</select>`
+    +`<button onclick="saveScenarioAs()" class="mini" style="width:100%;margin-top:6px">另存為情境…</button></div>`;
+  html+=`<div class="phd">${fieldHTML(TG_META)}</div>`;
+  for(const sec of SECTIONS){
+    const fields=PARAM_META.filter(m=>m.section===sec.id);
+    const mapHTML=sec.map?`<svg id="route-map" viewBox="0 0 280 74"></svg>`:'';
+    html+=`<div class="sec" id="sec-${sec.id}"><div class="sec-h" onclick="toggleSec('${sec.id}')">`
+      +`<span>${sec.title}</span><span class="sec-cnt">(${fields.length})</span>`
+      +`<span class="ptag ${sec.tag}">${sec.tag==='live'?'⚡即時':'↻重跑'}</span><span class="arr">▼</span></div>`
+      +`<div class="sec-b">${mapHTML}${fields.map(fieldHTML).join('')}</div></div>`;
+  }
+  scroll.innerHTML=html;
+  document.getElementById('sb-ft').innerHTML=
+    `<div id="dirty-ind" class="clean"></div>`
+    +`<div class="ftrow"><button id="btn-apply" onclick="applyP()">套用</button>`
+    +`<label class="chk"><input type="checkbox" id="chk-autoplay" checked>自動播放</label></div>`
+    +`<div class="ftrow"><button onclick="resetP()" class="mini" style="flex:1">恢復預設</button>`
+    +`<button onclick="exportParams()" class="mini" style="flex:1">⬇匯出</button>`
+    +`<button onclick="document.getElementById('import-file').click()" class="mini" style="flex:1">⬆匯入</button></div>`;
+  ALL_META.forEach(m=>{
+    const el=document.getElementById('p-'+m.key);
+    if(el) el.addEventListener('input',()=>{validateField(m);refreshDirty();});
+  });
+  buildRouteMap();
+  restoreSecState();
+  applyParamsToInputs(P);
+  const sel=document.getElementById('scenario-sel'); if(sel) sel.value=scnStore.active;
+  applyLineFilter();
+  refreshDirty();
+}
+function toggleSec(id){const el=document.getElementById('sec-'+id);if(el){el.classList.toggle('closed');saveSecState();}}
+function saveSecState(){
+  const st={};
+  SECTIONS.forEach(s=>{const el=document.getElementById('sec-'+s.id);if(el)st[s.id]=!el.classList.contains('closed');});
+  try{localStorage.setItem('sim-sec-state',JSON.stringify(st));}catch(_){}
+}
+function restoreSecState(){
+  let st; try{st=JSON.parse(localStorage.getItem('sim-sec-state'));}catch(_){}
+  const use=st||{proc:true,pickdrop:false,route:false,live:true};
+  SECTIONS.forEach(s=>{const el=document.getElementById('sec-'+s.id);if(el)el.classList.toggle('closed',!use[s.id]);});
+}
+function applyLineFilter(){
+  document.querySelectorAll('#sb-scroll .pg').forEach(pg=>{
+    const ln=pg.getAttribute('data-line');
+    pg.style.display=(ln==='both'||ln===selectedLine)?'':'none';
+  });
+  SECTIONS.forEach(s=>{
+    const sec=document.getElementById('sec-'+s.id);if(!sec)return;
+    const any=PARAM_META.some(m=>m.section===s.id&&(m.line==='both'||m.line===selectedLine));
+    sec.style.display=any?'':'none';
+  });
+}
+function stepField(key,dir){
+  const m=PARAM_BY_KEY[key];const el=document.getElementById('p-'+key);
+  if(!m||!el)return;
+  let v=+el.value||0; v+=dir*(m.step||1);
+  if(m.min!=null)v=Math.max(m.min,v);
+  if(m.max!=null)v=Math.min(m.max,v);
+  el.value=v; validateField(m); refreshDirty();
+}
+
+// ── 驗證（inline，取代 alert）──
+function readField(m){
+  const el=document.getElementById('p-'+m.key);
+  if(!el) return {ok:false,val:null,msg:'缺少欄位'};
+  if(m.type==='mmss'){
+    const v=parseMMSS(el.value);
+    return v==null?{ok:false,val:null,msg:'格式須為 分:秒（秒 < 60）'}:{ok:true,val:v};
+  }
+  const raw=String(el.value).trim();
+  if(raw===''||isNaN(+raw)) return {ok:false,val:null,msg:'請輸入數字'};
+  const v=+raw;
+  if(m.min!=null&&v<m.min) return {ok:false,val:null,msg:`不可小於 ${m.min}`};
+  if(m.max!=null&&v>m.max) return {ok:false,val:null,msg:`不可大於 ${m.max}`};
+  return {ok:true,val:v};
+}
+function validateField(m){
+  const pg=document.getElementById('pg-'+m.key);const r=readField(m);
+  if(pg){pg.classList.toggle('invalid',!r.ok);const e=pg.querySelector('.err');if(e)e.textContent=r.ok?'':r.msg;}
+  return r.ok;
+}
+function relevant(m){return m.line==='both'||m.line===selectedLine;}
+function validateAll(){
+  let firstBad=null,ok=true;
+  for(const m of ALL_META){ if(!relevant(m))continue; if(!validateField(m)){ok=false;if(!firstBad)firstBad=m.key;} }
+  const btn=document.getElementById('btn-apply'); if(btn) btn.disabled=!ok;
+  return {ok,firstBad};
+}
+function readInputs(){
+  const out={...P};
+  for(const m of ALL_META){const r=readField(m);if(r.ok)out[m.key]=r.val;}
+  return out;
+}
+function changedSets(inp){
+  const live=[],resim=[];
+  for(const m of ALL_META){ if(!relevant(m))continue; if(inp[m.key]!==P[m.key]) (m.apply==='live'?live:resim).push(m); }
+  return {live,resim};
+}
+function refreshDirty(){
+  const v=validateAll();const ind=document.getElementById('dirty-ind');const btn=document.getElementById('btn-apply');
+  if(!ind||!btn)return;
+  if(!v.ok){ind.className='';ind.textContent='⚠ 有欄位無效，無法套用';btn.classList.remove('hot');return;}
+  const {live,resim}=changedSets(readInputs());
+  if(!live.length&&!resim.length){ind.className='clean';ind.textContent='';btn.classList.remove('hot');}
+  else if(resim.length){ind.className='';ind.textContent='● 參數已變更，畫面正在跑舊參數（需重跑）';btn.classList.add('hot');}
+  else {ind.className='live';ind.textContent='⚡ 即時參數已變更，套用後立即生效';btn.classList.add('hot');}
+}
+
+// ── 套用（方案 B：即時 vs 重跑）──
+function applyP(){
+  const v=validateAll();
+  if(!v.ok){const el=document.getElementById('p-'+v.firstBad);if(el)el.focus();return;}
+  const inp=readInputs();
+  const before=snapshotStats();
+  const {live,resim}=changedSets(inp);
+  const autoplay=document.getElementById('chk-autoplay')&&document.getElementById('chk-autoplay').checked;
+  if(resim.length){
+    P={...P,...inp};
+    persistActiveScenario();
+    resetSim();
+    if(autoplay&&!running) togglePlay();
+    showCompareCard(before,'重新模擬');
+  } else if(live.length){
+    for(const m of live) applyLiveParam(m.key,inp[m.key]);
+    persistActiveScenario();
+    markLiveChange(live.map(m=>m.label.replace('🎯 ','')).join('、'));
+    updateUI();
+    showCompareCard(before,'即時套用：'+live.map(m=>m.label.replace('🎯 ','')).join('、'));
+  }
+  refreshDirty();
+}
+function applyLiveParam(key,val){
+  // SMK 改 ABF 式固定分組後，即時參數僅剩目標產量
+  if(key==='tg'){P.tg=val;const t=document.getElementById('s-tgt');if(t)t.textContent=val+' 片';}
+}
+
+// ── 套用前後對比卡 ──
+function snapshotStats(){
+  // 作用線產出一律在 abfPcs/abfOut（一般化引擎）
+  const tot=abfPcs;
+  const uph=calcUPH(abfOut,simT,curBatch());
+  let eta='—'; if(uph>0&&tot<P.tg) eta=fmt(simT+(P.tg-tot)/uph*3600);
+  return {uph,eta,done:tot,simT};
+}
+function showCompareCard(before,label){
+  cmpState={before,label};
+  const card=document.getElementById('cmp-card');if(!card)return;
+  card.classList.add('show');
+  // 骨架只建一次（✕ 按鈕穩定不被每幀重建，才點得到）；數值由 renderCompareCard 更新
+  card.innerHTML=`<h4>已套用：${label}<span class="cmpx" onclick="hideCompareCard()">✕</span></h4>`
+    +`<div class="crow"><span>UPH</span><span id="cmp-uph"></span></div>`
+    +`<div class="crow"><span>預估完成</span><span id="cmp-eta"></span></div>`
+    +`<div class="crow"><span>已完成</span><span id="cmp-done"></span></div>`;
+  renderCompareCard();
+}
+function renderCompareCard(){
+  if(!cmpState)return;
+  const a=snapshotStats(),b=cmpState.before;
+  const arr=(av,bv)=>{if(av===bv)return '<span class="eq">—</span>';const up=av>bv;return `<span class="${up?'up':'dn'}">${up?'▲':'▼'} ${up?'+':''}${av-bv}</span>`;};
+  const u=document.getElementById('cmp-uph');  if(u) u.innerHTML=`${b.uph} → ${a.uph} ${arr(a.uph,b.uph)}`;
+  const e=document.getElementById('cmp-eta');  if(e) e.textContent=`${b.eta} → ${a.eta}`;
+  const d=document.getElementById('cmp-done'); if(d) d.textContent=`${a.done} 片`;
+}
+function hideCompareCard(){cmpState=null;const c=document.getElementById('cmp-card');if(c)c.classList.remove('show');}
+// 即時變更時間軸註記（保留可追溯性）
+function markLiveChange(summary){
+  liveMarks.push(`${fmt(simT).slice(3)} ${summary}`);
+  if(liveMarks.length>6) liveMarks=liveMarks.slice(-6);
+  renderLiveMarks();
+}
+function renderLiveMarks(){
+  let el=document.getElementById('live-marks');
+  if(!el){
+    const cw=document.getElementById('cw');if(!cw)return;
+    cw.style.position='relative';
+    el=document.createElement('div');el.id='live-marks';
+    el.style.cssText='position:absolute;top:4px;right:8px;font-size:10px;font-weight:600;color:#a06400;text-align:right;pointer-events:none;line-height:1.4;text-shadow:0 0 3px #fff;z-index:5';
+    cw.appendChild(el);
+  }
+  el.innerHTML=liveMarks.length?('⚡即時變更<br>'+liveMarks.join('<br>')):'';
+}
+
+// ── 路段時間迷你示意圖（段 ↔ 欄位雙向 highlight）──
+function buildRouteMap(){
+  const svg=document.getElementById('route-map');if(!svg)return;
+  if(selectedLine==='smk'){ buildSMKRouteMap(svg); return; }
+  const names=['CLN','Ann','CZ','Bak','壓','Pos','換'];
+  const xi=i=>20+i*40, yb=26;
+  let h='';
+  [['0_1',0,1],['1_2',1,2],['2_3',2,3],['3_4',3,4],['4_5',4,5],['5_6',5,6]].forEach(([k,a,b])=>{
+    h+=`<line class="rseg" data-seg="${k}" x1="${xi(a)}" y1="${yb}" x2="${xi(b)}" y2="${yb}"/>`;});
+  [['0_2',0,2,46],['2_4',2,4,58],['4_6',4,6,70]].forEach(([k,a,b,yy])=>{
+    const x1=xi(a),x2=xi(b),mx=(x1+x2)/2;
+    h+=`<path class="rseg" data-seg="${k}" d="M${x1} ${yb+3} Q ${mx} ${yy} ${x2} ${yb+3}" fill="none"/>`;});
+  names.forEach((n,i)=>{h+=`<circle cx="${xi(i)}" cy="${yb}" r="3" fill="#8090b0"/><text x="${xi(i)}" y="${yb-7}">${n}</text>`;});
+  svg.innerHTML=h;
+  const hot=(segk,on)=>{const s=svg.querySelector(`.rseg[data-seg="${segk}"]`);if(s)s.classList.toggle('hot',on);const pg=document.getElementById('pg-'+SEG_TO_KEY[segk]);if(pg)pg.classList.toggle('hot',on);};
+  svg.querySelectorAll('.rseg').forEach(seg=>{
+    const segk=seg.getAttribute('data-seg');
+    seg.addEventListener('mouseenter',()=>hot(segk,true));
+    seg.addEventListener('mouseleave',()=>hot(segk,false));
+    seg.addEventListener('click',()=>{const el=document.getElementById('p-'+SEG_TO_KEY[segk]);if(el){el.focus();if(el.select)el.select();}});
+  });
+  Object.entries(SEG_TO_KEY).forEach(([segk,key])=>{
+    const pg=document.getElementById('pg-'+key);if(!pg)return;
+    pg.addEventListener('mouseenter',()=>hot(segk,true));
+    pg.addEventListener('mouseleave',()=>hot(segk,false));
+  });
+}
+// SMK 路段示意圖：線性 11 站、10 相鄰段(s0..s9) + 4 回程直達弧(d02/d24/d68/d810)
+function buildSMKRouteMap(svg){
+  const names=['CLN','Ann','CZ','Bak','壓','曝','顯','SB','UVQ','Pos','換'];
+  const px=i=>14+i*25, yb=30;
+  const k2key=segk=> segk[0]==='d' ? 'smkD'+segk.slice(1) : 'smkR'+segk.slice(1); // 's3'→smkR3 / 'd02'→smkD02
+  let h='';
+  for(let k=0;k<10;k++)
+    h+=`<line class="rseg" data-seg="s${k}" x1="${px(k)}" y1="${yb}" x2="${px(k+1)}" y2="${yb}"/>`;
+  [['d02',0,2,50],['d24',2,4,60],['d68',6,8,50],['d810',8,10,60]].forEach(([k,a,b,yy])=>{
+    const x1=px(a),x2=px(b),mx=(x1+x2)/2;
+    h+=`<path class="rseg" data-seg="${k}" d="M${x1} ${yb+3} Q ${mx} ${yy} ${x2} ${yb+3}" fill="none"/>`;});
+  names.forEach((n,i)=>{h+=`<circle cx="${px(i)}" cy="${yb}" r="2.5" fill="#8090b0"/><text x="${px(i)}" y="${yb-7}" style="font-size:7px">${n}</text>`;});
+  svg.innerHTML=h;
+  const hot=(segk,on)=>{const s=svg.querySelector(`.rseg[data-seg="${segk}"]`);if(s)s.classList.toggle('hot',on);const pg=document.getElementById('pg-'+k2key(segk));if(pg)pg.classList.toggle('hot',on);};
+  svg.querySelectorAll('.rseg').forEach(seg=>{
+    const segk=seg.getAttribute('data-seg');
+    seg.addEventListener('mouseenter',()=>hot(segk,true));
+    seg.addEventListener('mouseleave',()=>hot(segk,false));
+    seg.addEventListener('click',()=>{const el=document.getElementById('p-'+k2key(segk));if(el){el.focus();if(el.select)el.select();}});
+  });
+  ['s0','s1','s2','s3','s4','s5','s6','s7','s8','s9','d02','d24','d68','d810'].forEach(segk=>{
+    const pg=document.getElementById('pg-'+k2key(segk));if(!pg)return;
+    pg.addEventListener('mouseenter',()=>hot(segk,true));
+    pg.addEventListener('mouseleave',()=>hot(segk,false));
+  });
+}
+
+// ── 具名情境（scenario-presets）localStorage v2 ──
+const BUILTIN_SCENARIOS={
+  '理想節拍':{line:null,params:{...DEF}},
+  '瓶頸情境':{line:null,params:{...DEF, czTime:DEF.czTime+180, pressTime:DEF.pressTime+180, smkCz:DEF.smkCz+180, smkPress:DEF.smkPress+180}},
+  '客戶現況':{line:null,params:{...DEF}},
+};
+function cloneBuiltins(){const o={};for(const k in BUILTIN_SCENARIOS)o[k]={line:BUILTIN_SCENARIOS[k].line,params:{...BUILTIN_SCENARIOS[k].params}};return o;}
+function loadScenarioStore(){
+  try{
+    const raw=localStorage.getItem('sim-scenarios');
+    if(raw){const o=JSON.parse(raw);if(o&&o.version===2&&o.presets)return o;}
+    const old=localStorage.getItem('sim-params'); // 遷移舊版單組參數
+    if(old){const p=JSON.parse(old);return {version:2,active:'匯入設定',presets:Object.assign(cloneBuiltins(),{'匯入設定':{line:null,params:{...DEF,...p}}})};}
+  }catch(_){}
+  return {version:2,active:'理想節拍',presets:cloneBuiltins()};
+}
+function saveScenarioStore(){try{localStorage.setItem('sim-scenarios',JSON.stringify(scnStore));}catch(_){}}
+function persistActiveScenario(){
+  if(!scnStore)scnStore=loadScenarioStore();
+  const name=scnStore.active;
+  if(!(name in BUILTIN_SCENARIOS)) scnStore.presets[name]={line:selectedLine,params:{...P}}; // 不覆寫內建範本
+  saveScenarioStore();
+}
+function onScenarioPick(name){
+  if(!scnStore)scnStore=loadScenarioStore();
+  scnStore.active=name;
+  const sc=scnStore.presets[name];if(sc)applyParamsToInputs({...DEF,...sc.params});
+  saveScenarioStore();refreshDirty();
+}
+function saveScenarioAs(){
+  const name=prompt('情境名稱：');if(!name)return;
+  if(!scnStore)scnStore=loadScenarioStore();
+  scnStore.presets[name]={line:selectedLine,params:{...readInputs()}};
+  scnStore.active=name;saveScenarioStore();rebuildScenarioOptions(name);
+}
+function rebuildScenarioOptions(active){
+  const sel=document.getElementById('scenario-sel');if(!sel||!scnStore)return;
+  sel.innerHTML=Object.keys(scnStore.presets).map(n=>`<option value="${n}">${n}</option>`).join('');
+  sel.value=active||scnStore.active;
+}
+function exportParams(){
+  const name=(scnStore&&scnStore.active)||'scenario';
+  const data=JSON.stringify({type:'sim-scenario',name,line:selectedLine,params:readInputs()},null,2);
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));
+  a.download=`scenario-${name}.json`;a.click();URL.revokeObjectURL(a.href);
+}
+function showImportError(msg){const ind=document.getElementById('dirty-ind');if(ind){ind.className='';ind.textContent='⚠ '+msg;}}
+function importParams(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const obj=JSON.parse(ev.target.result);
+      const params=obj.params||obj;
+      const name=obj.name||file.name.replace(/\.json$/,'');
+      if(!scnStore)scnStore=loadScenarioStore();
+      scnStore.presets[name]={line:obj.line||selectedLine,params:{...DEF,...params}};
+      scnStore.active=name;saveScenarioStore();rebuildScenarioOptions(name);
+      applyParamsToInputs({...DEF,...params});refreshDirty();
+    }catch(_){ showImportError('JSON 格式錯誤，請確認檔案內容'); }
+    e.target.value='';
+  };
+  reader.readAsText(file);
+}
+function applyParamsToInputs(p){
+  for(const m of ALL_META){
+    const el=document.getElementById('p-'+m.key);if(!el)continue;
+    const val=p[m.key];if(val==null)continue;
+    el.value=(m.type==='mmss')?fmtMMSS(val):val;
+  }
+  ALL_META.forEach(m=>validateField(m));
+}
+function resetP(){applyParamsToInputs(DEF);refreshDirty();}
+
+function fmt(s){
+  s=Math.max(0,s);
+  const h=Math.floor(s/3600),m=Math.floor(s%3600/60),ss=Math.floor(s%60);
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// LINE SELECTION
+// ══════════════════════════════════════════════════════════════
+let selectedLine = null; // 'abf' | 'smk'
+
+function selectLine(line){
+  selectedLine = line;
+  document.getElementById('sel-ov').style.display = 'none';
+  document.getElementById('ttl').textContent =
+    line === 'abf' ? '欣興電子 ABF 製程 AGV 模擬' : '欣興電子 SMK 製程 AGV 模擬';
+  applyLineFilter();
+  buildRouteMap(); // 路段示意圖依作用線重建（ABF / SMK）
+  refreshDirty();
+  document.getElementById('row-auph').style.display  = line==='abf' ? '' : 'none';
+  document.getElementById('row-suph').style.display  = line==='smk' ? '' : 'none';
+  document.getElementById('bnk-section').style.display = ''; // PORT 堆積瓶頸對兩線皆適用
+  initSim();
+}
+
+function backToSelect(){
+  running = false;
+  if(rafId) cancelAnimationFrame(rafId);
+  selectedLine = null;
+  document.getElementById('sel-ov').style.display = 'flex';
+  document.getElementById('ov').classList.remove('show');
+}
+
+// 公司 LOGO（擎添工業，SVG 向量）—— base64 內嵌，單檔自帶不依賴外部圖片
+const LOGO_SRC='data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjwhLS0gQ3JlYXRlZCB3aXRoIElua3NjYXBlIChodHRwOi8vd3d3Lmlua3NjYXBlLm9yZy8pIC0tPgoKPHN2ZwogICB3aWR0aD0iMzUwIgogICBoZWlnaHQ9IjE0MCIKICAgdmlld0JveD0iMCAwIDkyLjYwNDE2NCAzNy4wNDE2NjciCiAgIHZlcnNpb249IjEuMSIKICAgaWQ9InN2ZzEiCiAgIHNvZGlwb2RpOmRvY25hbWU9ImNoaW5nLXRlY2guc3ZnIgogICBpbmtzY2FwZTp2ZXJzaW9uPSIxLjQuMiAoMmFlYjYyM2UxZCwgMjAyNS0wNS0xMikiCiAgIHhtbDpzcGFjZT0icHJlc2VydmUiCiAgIGlua3NjYXBlOmV4cG9ydC1maWxlbmFtZT0ibWFzay1mYW51Yy5zdmciCiAgIGlua3NjYXBlOmV4cG9ydC14ZHBpPSI5NiIKICAgaW5rc2NhcGU6ZXhwb3J0LXlkcGk9Ijk2IgogICB4bWxuczppbmtzY2FwZT0iaHR0cDovL3d3dy5pbmtzY2FwZS5vcmcvbmFtZXNwYWNlcy9pbmtzY2FwZSIKICAgeG1sbnM6c29kaXBvZGk9Imh0dHA6Ly9zb2RpcG9kaS5zb3VyY2Vmb3JnZS5uZXQvRFREL3NvZGlwb2RpLTAuZHRkIgogICB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciCiAgIHhtbG5zOnN2Zz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxzb2RpcG9kaTpuYW1lZHZpZXcKICAgICBpZD0ibmFtZWR2aWV3MSIKICAgICBwYWdlY29sb3I9IiNmZmZmZmYiCiAgICAgYm9yZGVyY29sb3I9IiMwMDAwMDAiCiAgICAgYm9yZGVyb3BhY2l0eT0iMC4yNSIKICAgICBpbmtzY2FwZTpzaG93cGFnZXNoYWRvdz0iMiIKICAgICBpbmtzY2FwZTpwYWdlb3BhY2l0eT0iMC4wIgogICAgIGlua3NjYXBlOnBhZ2VjaGVja2VyYm9hcmQ9IjAiCiAgICAgaW5rc2NhcGU6ZGVza2NvbG9yPSIjZDFkMWQxIgogICAgIGlua3NjYXBlOmRvY3VtZW50LXVuaXRzPSJtbSIKICAgICBpbmtzY2FwZTp6b29tPSIxLjM0NjQ0OTIiCiAgICAgaW5rc2NhcGU6Y3g9IjE4NS4zMDIyMSIKICAgICBpbmtzY2FwZTpjeT0iMTEyLjUxODE3IgogICAgIGlua3NjYXBlOndpbmRvdy13aWR0aD0iMjU2MCIKICAgICBpbmtzY2FwZTp3aW5kb3ctaGVpZ2h0PSIxMzcxIgogICAgIGlua3NjYXBlOndpbmRvdy14PSIzMzYwIgogICAgIGlua3NjYXBlOndpbmRvdy15PSI2MTIiCiAgICAgaW5rc2NhcGU6d2luZG93LW1heGltaXplZD0iMSIKICAgICBpbmtzY2FwZTpjdXJyZW50LWxheWVyPSJsYXllcjEiCiAgICAgc2hvd2dyaWQ9ImZhbHNlIiAvPjxkZWZzCiAgICAgaWQ9ImRlZnMxIj48bGluZWFyR3JhZGllbnQKICAgaWQ9InN3YXRjaDE0IgogICBpbmtzY2FwZTpzd2F0Y2g9InNvbGlkIj48c3RvcAogICAgIHN0eWxlPSJzdG9wLWNvbG9yOiNmZmUwMWE7c3RvcC1vcGFjaXR5OjE7IgogICAgIG9mZnNldD0iMCIKICAgICBpZD0ic3RvcDE0IiAvPjwvbGluZWFyR3JhZGllbnQ+CgkKCgkJCgkJCgkJCgkJCgkJCgkJCgkJCgkJCgk8ZmlsdGVyCiAgIGlua3NjYXBlOmNvbGxlY3Q9ImFsd2F5cyIKICAgc3R5bGU9ImNvbG9yLWludGVycG9sYXRpb24tZmlsdGVyczpzUkdCIgogICBpZD0iZmlsdGVyMzQiCiAgIHg9Ii0wLjAwNDAxNDUwMjUiCiAgIHk9Ii0wLjAxNzAxMDUwNCIKICAgd2lkdGg9IjEuMDA4MDI5IgogICBoZWlnaHQ9IjEuMDM0MDIxIj48ZmVHYXVzc2lhbkJsdXIKICAgICBpbmtzY2FwZTpjb2xsZWN0PSJhbHdheXMiCiAgICAgc3RkRGV2aWF0aW9uPSIwLjA1NjI1ODY5IgogICAgIGlkPSJmZUdhdXNzaWFuQmx1cjM0IiAvPjwvZmlsdGVyPjxmaWx0ZXIKICAgaW5rc2NhcGU6Y29sbGVjdD0iYWx3YXlzIgogICBzdHlsZT0iY29sb3ItaW50ZXJwb2xhdGlvbi1maWx0ZXJzOnNSR0IiCiAgIGlkPSJmaWx0ZXIzNSIKICAgeD0iLTAuMDAzMzk3MzUwNiIKICAgeT0iLTAuMDE3MDEwNTAxIgogICB3aWR0aD0iMS4wMDY3OTQ3IgogICBoZWlnaHQ9IjEuMDM0MDIxIj48ZmVHYXVzc2lhbkJsdXIKICAgICBpbmtzY2FwZTpjb2xsZWN0PSJhbHdheXMiCiAgICAgc3RkRGV2aWF0aW9uPSIwLjA1NjI1ODY5IgogICAgIGlkPSJmZUdhdXNzaWFuQmx1cjM1IiAvPjwvZmlsdGVyPjxmaWx0ZXIKICAgaW5rc2NhcGU6Y29sbGVjdD0iYWx3YXlzIgogICBzdHlsZT0iY29sb3ItaW50ZXJwb2xhdGlvbi1maWx0ZXJzOnNSR0IiCiAgIGlkPSJmaWx0ZXIzNiIKICAgeD0iLTAuMDA2Mzc4OTM3OSIKICAgeT0iLTAuMDA2Mzc4OTM4MiIKICAgd2lkdGg9IjEuMDEyNzU3OSIKICAgaGVpZ2h0PSIxLjAxMjc1NzkiPjxmZUdhdXNzaWFuQmx1cgogICAgIGlua3NjYXBlOmNvbGxlY3Q9ImFsd2F5cyIKICAgICBzdGREZXZpYXRpb249IjAuMDU2MjU4NjkiCiAgICAgaWQ9ImZlR2F1c3NpYW5CbHVyMzYiIC8+PC9maWx0ZXI+PC9kZWZzPjxnCiAgICAgaW5rc2NhcGU6bGFiZWw9IkxheWVyIDEiCiAgICAgaW5rc2NhcGU6Z3JvdXBtb2RlPSJsYXllciIKICAgICBpZD0ibGF5ZXIxIj48cGF0aAogICAgICAgZmlsbD0iI2RkZGRkZCIKICAgICAgIGQ9Im0gMzEuNzUsMTguNTIwODMzIGMgMCw1Ljg0NTA0NyAtNC43MzgzMzEsMTAuNTgzMzMzIC0xMC41ODMxMTQsMTAuNTgzMzMzIC01Ljg0NTIyMiwwIC0xMC41ODM1NTMsLTQuNzM4Mjg2IC0xMC41ODM1NTMsLTEwLjU4MzMzMyAwLC01Ljg0NTA0NiA0LjczODMzMSwtMTAuNTgzMzMzIDEwLjU4MzUwOSwtMTAuNTgzMzMzIDUuODQ0ODI3LDAgMTAuNTgzMTU4LDQuNzM4Mjg3IDEwLjU4MzE1OCwxMC41ODMzMzMgeiIKICAgICAgIGlkPSJwYXRoMzUiCiAgICAgICBzdHlsZT0iZmlsbDojMTcxYzYxO2ZpbGwtb3BhY2l0eToxO3N0cm9rZS13aWR0aDowLjA0MzkyNDM7ZmlsdGVyOnVybCgjZmlsdGVyMzYpIiAvPjx0ZXh0CiAgICAgICB4bWw6c3BhY2U9InByZXNlcnZlIgogICAgICAgc3R5bGU9ImZvbnQtc3R5bGU6bm9ybWFsO2ZvbnQtdmFyaWFudDpub3JtYWw7Zm9udC13ZWlnaHQ6bm9ybWFsO2ZvbnQtc3RyZXRjaDpub3JtYWw7Zm9udC1zaXplOjcuOTM3NXB4O2ZvbnQtZmFtaWx5OidOb3RvIFNhbnMnOy1pbmtzY2FwZS1mb250LXNwZWNpZmljYXRpb246J05vdG8gU2FucywgTm9ybWFsJztmb250LXZhcmlhbnQtbGlnYXR1cmVzOm5vcm1hbDtmb250LXZhcmlhbnQtY2Fwczpub3JtYWw7Zm9udC12YXJpYW50LW51bWVyaWM6bm9ybWFsO2ZvbnQtdmFyaWFudC1lYXN0LWFzaWFuOm5vcm1hbDt0ZXh0LWFsaWduOnN0YXJ0O3dyaXRpbmctbW9kZTpsci10YjtkaXJlY3Rpb246bHRyO3RleHQtYW5jaG9yOnN0YXJ0O2Rpc3BsYXk6aW5saW5lO21peC1ibGVuZC1tb2RlOm5vcm1hbDtmaWxsOiMxNzFjNjE7ZmlsbC1vcGFjaXR5OjE7c3Ryb2tlLXdpZHRoOjExLjQ4NzU7ZmlsdGVyOnVybCgjZmlsdGVyMzUpIgogICAgICAgeD0iMzkuMjAzNDA3IgogICAgICAgeT0iMTUuMjkyOTAzIgogICAgICAgaWQ9InRleHQzNSI+PHRzcGFuCiAgICAgICAgIHNvZGlwb2RpOnJvbGU9ImxpbmUiCiAgICAgICAgIGlkPSJ0c3BhbjM1IgogICAgICAgICBzdHlsZT0iZm9udC1zdHlsZTpub3JtYWw7Zm9udC12YXJpYW50Om5vcm1hbDtmb250LXdlaWdodDpub3JtYWw7Zm9udC1zdHJldGNoOm5vcm1hbDtmb250LXNpemU6Ny45Mzc1cHg7Zm9udC1mYW1pbHk6J05vdG8gU2Fucyc7LWlua3NjYXBlLWZvbnQtc3BlY2lmaWNhdGlvbjonTm90byBTYW5zLCBOb3JtYWwnO2ZvbnQtdmFyaWFudC1saWdhdHVyZXM6bm9ybWFsO2ZvbnQtdmFyaWFudC1jYXBzOm5vcm1hbDtmb250LXZhcmlhbnQtbnVtZXJpYzpub3JtYWw7Zm9udC12YXJpYW50LWVhc3QtYXNpYW46bm9ybWFsO2ZpbGw6IzE3MWM2MTtmaWxsLW9wYWNpdHk6MTtzdHJva2Utd2lkdGg6MTEuNDg3NSIKICAgICAgICAgeD0iMzkuMjAzNDA3IgogICAgICAgICB5PSIxNS4yOTI5MDMiPkNoaW5nIFRlY2g8L3RzcGFuPjwvdGV4dD48dGV4dAogICAgICAgeG1sOnNwYWNlPSJwcmVzZXJ2ZSIKICAgICAgIHN0eWxlPSJmb250LXN0eWxlOm5vcm1hbDtmb250LXZhcmlhbnQ6bm9ybWFsO2ZvbnQtd2VpZ2h0Om5vcm1hbDtmb250LXN0cmV0Y2g6bm9ybWFsO2ZvbnQtc2l6ZTo4LjU5OTY3cHg7Zm9udC1mYW1pbHk6J05vdG8gU2FucyBUQyc7LWlua3NjYXBlLWZvbnQtc3BlY2lmaWNhdGlvbjonTm90byBTYW5zIFRDLCBAd2dodD00MDAnO2ZvbnQtdmFyaWFudC1saWdhdHVyZXM6bm9ybWFsO2ZvbnQtdmFyaWFudC1jYXBzOm5vcm1hbDtmb250LXZhcmlhbnQtbnVtZXJpYzpub3JtYWw7Zm9udC12YXJpYW50LWVhc3QtYXNpYW46bm9ybWFsO2ZvbnQtdmFyaWF0aW9uLXNldHRpbmdzOid3Z2h0JyA0MDA7dGV4dC1hbGlnbjpzdGFydDt3cml0aW5nLW1vZGU6bHItdGI7ZGlyZWN0aW9uOmx0cjt0ZXh0LWFuY2hvcjpzdGFydDtkaXNwbGF5OmlubGluZTttaXgtYmxlbmQtbW9kZTpub3JtYWw7ZmlsbDojMTcxYzYxO2ZpbGwtb3BhY2l0eToxO3N0cm9rZS13aWR0aDoxMi40NDU4O2ZpbHRlcjp1cmwoI2ZpbHRlcjM0KSIKICAgICAgIHg9IjQzLjQwNjk1MiIKICAgICAgIHk9IjI3LjA5MzM1OSIKICAgICAgIGlkPSJ0ZXh0MzQiPjx0c3BhbgogICAgICAgICBzb2RpcG9kaTpyb2xlPSJsaW5lIgogICAgICAgICBpZD0idHNwYW4zNCIKICAgICAgICAgc3R5bGU9ImZvbnQtc3R5bGU6bm9ybWFsO2ZvbnQtdmFyaWFudDpub3JtYWw7Zm9udC13ZWlnaHQ6bm9ybWFsO2ZvbnQtc3RyZXRjaDpub3JtYWw7Zm9udC1zaXplOjguNTk5NjdweDtmb250LWZhbWlseTonTm90byBTYW5zIFRDJzstaW5rc2NhcGUtZm9udC1zcGVjaWZpY2F0aW9uOidOb3RvIFNhbnMgVEMsIEB3Z2h0PTQwMCc7Zm9udC12YXJpYW50LWxpZ2F0dXJlczpub3JtYWw7Zm9udC12YXJpYW50LWNhcHM6bm9ybWFsO2ZvbnQtdmFyaWFudC1udW1lcmljOm5vcm1hbDtmb250LXZhcmlhbnQtZWFzdC1hc2lhbjpub3JtYWw7Zm9udC12YXJpYXRpb24tc2V0dGluZ3M6J3dnaHQnIDQwMDtmaWxsOiMxNzFjNjE7ZmlsbC1vcGFjaXR5OjE7c3Ryb2tlLXdpZHRoOjEyLjQ0NTgiCiAgICAgICAgIHg9IjQzLjQwNjk1MiIKICAgICAgICAgeT0iMjcuMDkzMzU5Ij7mk47mt7vlt6Xmpa08L3RzcGFuPjwvdGV4dD48cGF0aAogICAgICAgZmlsbD0iI2RkZGRkZCIKICAgICAgIGQ9Im0gMzEuNzUsMTguNTIwODMzIGMgMCw1Ljg0NTA0NyAtNC43MzgzMzEsMTAuNTgzMzMzIC0xMC41ODMxMTQsMTAuNTgzMzMzIC01Ljg0NTIyMiwwIC0xMC41ODM1NTMsLTQuNzM4Mjg2IC0xMC41ODM1NTMsLTEwLjU4MzMzMyAwLC01Ljg0NTA0NiA0LjczODMzMSwtMTAuNTgzMzMzIDEwLjU4MzUwOSwtMTAuNTgzMzMzIDUuODQ0ODI3LDAgMTAuNTgzMTU4LDQuNzM4Mjg3IDEwLjU4MzE1OCwxMC41ODMzMzMgeiIKICAgICAgIGlkPSJwYXRoMS0wIgogICAgICAgc3R5bGU9InN0cm9rZS13aWR0aDowLjA0MzkyNDMiIC8+PHBhdGgKICAgICAgIGZpbGw9IiM3ZWJlZTMiCiAgICAgICBkPSJtIDIxLjE2NjQ5MSwxOC41MjA4MzMgLTEwLjU4MzExNCwtMy45NWUtNCBjIDAsNS44NDU0NDIgNC43MzgzMzEsMTAuNTgzNzI4IDEwLjU4MzUwOSwxMC41ODM3MjggeiIKICAgICAgIGlkPSJwYXRoMi0zIgogICAgICAgc3R5bGU9InN0cm9rZS13aWR0aDowLjA0MzkyNDMiIC8+PHBhdGgKICAgICAgIGZpbGw9IiM3ZWJlZTMiCiAgICAgICBkPSJNIDIxLjE2Njg0MiwxOC41MjA4MzMgSCAzMS43NDk5NTYgQyAzMS43NDk5NTYsMTIuNjc1Nzg3IDI3LjAxMTYyNSw3LjkzNzUgMjEuMTY2NDQ3LDcuOTM3NSBaIgogICAgICAgaWQ9InBhdGgzLTAiCiAgICAgICBzdHlsZT0ic3Ryb2tlLXdpZHRoOjAuMDQzOTI0MyIgLz48cGF0aAogICAgICAgZmlsbD0iI2RkZGRkZCIKICAgICAgIGQ9Im0gMjcuODUxMDE4LDE4LjUyMDgzMyBjIDAsMy42OTIwNTUgLTIuOTkyODY4LDYuNjg0MDg4IC02LjY4NDU3MSw2LjY4NDA4OCAtMy42OTEzMDgsMCAtNi42ODQxNzYsLTIuOTkyMDMzIC02LjY4NDE3NiwtNi42ODQwODggMCwtMy42OTE2NTkgMi45OTI4NjgsLTYuNjg0MDg4IDYuNjg0MTc2LC02LjY4NDA4OCAzLjY5MTcwMywwIDYuNjg0NTcxLDIuOTkyNDI5IDYuNjg0NTcxLDYuNjg0MDg4IHoiCiAgICAgICBpZD0icGF0aDQtNCIKICAgICAgIHN0eWxlPSJzdHJva2Utd2lkdGg6MC4wNDM5MjQzIiAvPjxwYXRoCiAgICAgICBmaWxsPSIjMWQ5NmQ1IgogICAgICAgZD0ibSAyMS4xNjY4NDIsMTguNTIwODMzIC0zLjk1ZS00LC02LjY4NDA4OCBjIC0zLjY5MTMwOCwwIC02LjY4NDE3NiwyLjk5MjQyOSAtNi42ODQxNzYsNi42ODQwODggeiIKICAgICAgIGlkPSJwYXRoNS00IgogICAgICAgc3R5bGU9InN0cm9rZS13aWR0aDowLjA0MzkyNDMiIC8+PHBhdGgKICAgICAgIGZpbGw9IiMxZDk2ZDUiCiAgICAgICBkPSJtIDIxLjE2NjQ5MSwxOC41MjA4MzMgMy45NWUtNCw2LjY4NDA4OCBjIDMuNjkxNzQ3LDAgNi42ODQxNzYsLTIuOTkyMDMzIDYuNjg0MTc2LC02LjY4NDA4OCB6IgogICAgICAgaWQ9InBhdGg2LTQiCiAgICAgICBzdHlsZT0ic3Ryb2tlLXdpZHRoOjAuMDQzOTI0MyIKICAgICAgIGlua3NjYXBlOmxhYmVsPSJwYXRoNi00IiAvPjxwYXRoCiAgICAgICBmaWxsPSIjMWMyYTU0IgogICAgICAgZD0ibSAxOC4wODg0MSwyMC45NzE3MiB2IC00LjkwMTc3MyBjIDAuOTIzMDI0LDAgMS43MjU5NiwwLjUxMDQ0NCAyLjE0Mzg5OSwxLjI2NDE4NCBsIDAuNDM4MzIxLC0wLjI0Mjk0NSBjIC0wLjUwMzU0OCwtMC45MDc2NTEgLTEuNDcwNjczLC0xLjUyMjQ1OSAtMi41ODIxNzYsLTEuNTIyNDU5IC0xLjYzMDMzNywwIC0yLjk1MjE1MSwxLjMyMTc2OSAtMi45NTIxNTEsMi45NTIxMDYgMCwxLjYzMDMzNyAxLjMyMTgxNCwyLjk1MjEwNiAyLjk1MjE1MSwyLjk1MjEwNiAxLjExMTUwMywwIDIuMDc4NjI4LC0wLjYxNDgwOCAyLjU4MjE3NiwtMS41MjI0NTkgTCAyMC4yMzIzMDksMTkuNzA3NTM1IEMgMTkuODE0MzcsMjAuNDYxMjc2IDE5LjAxMTQzNCwyMC45NzE3MiAxOC4wODg0MSwyMC45NzE3MiBaIgogICAgICAgaWQ9InBhdGg3LTQiCiAgICAgICBzdHlsZT0iZmlsbDojMTcxYzYxO2ZpbGwtb3BhY2l0eToxO3N0cm9rZS13aWR0aDowLjA0MzkyNDMiIC8+PHBvbHlnb24KICAgICAgIGZpbGw9IiMxYzJhNTQiCiAgICAgICBwb2ludHM9IjM4OC4yMzIsMTg4Ljc5MSAyNjAuNzMxLDE4OC43OTEgMjYwLjczMSwyMDAuMTUgMjk3LjA4LDIwMC4xNSAyOTcuMDgsMzIzLjIwOSAzNTEuMzI0LDMyMy4yMDkgMzUxLjMyNCwyMDAuMTUgMzg4LjIzMiwyMDAuMTUgIgogICAgICAgaWQ9InBvbHlnb243IgogICAgICAgdHJhbnNmb3JtPSJtYXRyaXgoMC4wNDM5MjQyNywwLDAsMC4wNDM5MjQyNyw5LjkyMjA1MzQsNy4yNzYyMjAxKSIKICAgICAgIHN0eWxlPSJmaWxsOiMxNzFjNjE7ZmlsbC1vcGFjaXR5OjEiIC8+PHRleHQKICAgICAgIHhtbDpzcGFjZT0icHJlc2VydmUiCiAgICAgICBzdHlsZT0iZm9udC1zdHlsZTpub3JtYWw7Zm9udC12YXJpYW50Om5vcm1hbDtmb250LXdlaWdodDpub3JtYWw7Zm9udC1zdHJldGNoOm5vcm1hbDtmb250LXNpemU6Ny45Mzc1cHg7Zm9udC1mYW1pbHk6J05vdG8gU2Fucyc7LWlua3NjYXBlLWZvbnQtc3BlY2lmaWNhdGlvbjonTm90byBTYW5zLCBOb3JtYWwnO2ZvbnQtdmFyaWFudC1saWdhdHVyZXM6bm9ybWFsO2ZvbnQtdmFyaWFudC1jYXBzOm5vcm1hbDtmb250LXZhcmlhbnQtbnVtZXJpYzpub3JtYWw7Zm9udC12YXJpYW50LWVhc3QtYXNpYW46bm9ybWFsO3RleHQtYWxpZ246c3RhcnQ7d3JpdGluZy1tb2RlOmxyLXRiO2RpcmVjdGlvbjpsdHI7dGV4dC1hbmNob3I6c3RhcnQ7ZmlsbDojMTcxYzYxO2ZpbGwtb3BhY2l0eToxO3N0cm9rZS13aWR0aDoxMS40ODc1IgogICAgICAgeD0iMzkuMjAzMzIiCiAgICAgICB5PSIxNS4yOTI5MDMiCiAgICAgICBpZD0idGV4dDEiCiAgICAgICBpbmtzY2FwZTpsYWJlbD0iQ2hpbmcgVGVjaCI+PHRzcGFuCiAgICAgICAgIHNvZGlwb2RpOnJvbGU9ImxpbmUiCiAgICAgICAgIGlkPSJ0c3BhbjEiCiAgICAgICAgIHN0eWxlPSJmb250LXN0eWxlOm5vcm1hbDtmb250LXZhcmlhbnQ6bm9ybWFsO2ZvbnQtd2VpZ2h0Om5vcm1hbDtmb250LXN0cmV0Y2g6bm9ybWFsO2ZvbnQtc2l6ZTo3LjkzNzVweDtmb250LWZhbWlseTonTm90byBTYW5zJzstaW5rc2NhcGUtZm9udC1zcGVjaWZpY2F0aW9uOidOb3RvIFNhbnMsIE5vcm1hbCc7Zm9udC12YXJpYW50LWxpZ2F0dXJlczpub3JtYWw7Zm9udC12YXJpYW50LWNhcHM6bm9ybWFsO2ZvbnQtdmFyaWFudC1udW1lcmljOm5vcm1hbDtmb250LXZhcmlhbnQtZWFzdC1hc2lhbjpub3JtYWw7ZmlsbDojMTcxYzYxO2ZpbGwtb3BhY2l0eToxO3N0cm9rZS13aWR0aDoxMS40ODc1IgogICAgICAgICB4PSIzOS4yMDMzMiIKICAgICAgICAgeT0iMTUuMjkyOTAzIj5DaGluZyBUZWNoPC90c3Bhbj48L3RleHQ+PHRleHQKICAgICAgIHhtbDpzcGFjZT0icHJlc2VydmUiCiAgICAgICBzdHlsZT0iZm9udC1zdHlsZTpub3JtYWw7Zm9udC12YXJpYW50Om5vcm1hbDtmb250LXdlaWdodDpub3JtYWw7Zm9udC1zdHJldGNoOm5vcm1hbDtmb250LXNpemU6OC41OTk2N3B4O2ZvbnQtZmFtaWx5OidOb3RvIFNhbnMgVEMnOy1pbmtzY2FwZS1mb250LXNwZWNpZmljYXRpb246J05vdG8gU2FucyBUQywgQHdnaHQ9NDAwJztmb250LXZhcmlhbnQtbGlnYXR1cmVzOm5vcm1hbDtmb250LXZhcmlhbnQtY2Fwczpub3JtYWw7Zm9udC12YXJpYW50LW51bWVyaWM6bm9ybWFsO2ZvbnQtdmFyaWFudC1lYXN0LWFzaWFuOm5vcm1hbDtmb250LXZhcmlhdGlvbi1zZXR0aW5nczond2dodCcgNDAwO3RleHQtYWxpZ246c3RhcnQ7d3JpdGluZy1tb2RlOmxyLXRiO2RpcmVjdGlvbjpsdHI7dGV4dC1hbmNob3I6c3RhcnQ7ZmlsbDojMTcxYzYxO2ZpbGwtb3BhY2l0eToxO3N0cm9rZS13aWR0aDoxMi40NDU4IgogICAgICAgeD0iNDMuNDA2ODY0IgogICAgICAgeT0iMjcuMDkzMjc1IgogICAgICAgaWQ9InRleHQxMiIKICAgICAgIGlua3NjYXBlOmxhYmVsPSLmk47mt7vlt6Xmpa0iPjx0c3BhbgogICAgICAgICBzb2RpcG9kaTpyb2xlPSJsaW5lIgogICAgICAgICBpZD0idHNwYW4xMiIKICAgICAgICAgc3R5bGU9ImZvbnQtc3R5bGU6bm9ybWFsO2ZvbnQtdmFyaWFudDpub3JtYWw7Zm9udC13ZWlnaHQ6bm9ybWFsO2ZvbnQtc3RyZXRjaDpub3JtYWw7Zm9udC1zaXplOjguNTk5NjdweDtmb250LWZhbWlseTonTm90byBTYW5zIFRDJzstaW5rc2NhcGUtZm9udC1zcGVjaWZpY2F0aW9uOidOb3RvIFNhbnMgVEMsIEB3Z2h0PTQwMCc7Zm9udC12YXJpYW50LWxpZ2F0dXJlczpub3JtYWw7Zm9udC12YXJpYW50LWNhcHM6bm9ybWFsO2ZvbnQtdmFyaWFudC1udW1lcmljOm5vcm1hbDtmb250LXZhcmlhbnQtZWFzdC1hc2lhbjpub3JtYWw7Zm9udC12YXJpYXRpb24tc2V0dGluZ3M6J3dnaHQnIDQwMDtmaWxsOiMxNzFjNjE7ZmlsbC1vcGFjaXR5OjE7c3Ryb2tlLXdpZHRoOjEyLjQ0NTgiCiAgICAgICAgIHg9IjQzLjQwNjg2NCIKICAgICAgICAgeT0iMjcuMDkzMjc1Ij7mk47mt7vlt6Xmpa08L3RzcGFuPjwvdGV4dD48L2c+PGcKICAgICBpbmtzY2FwZTpncm91cG1vZGU9ImxheWVyIgogICAgIGlkPSJsYXllcjIiCiAgICAgaW5rc2NhcGU6bGFiZWw9IkxheWVyIDIiIC8+PC9zdmc+Cg==';
+window.addEventListener('load',()=>{
+  initChart();
+  const lh=document.getElementById('logo-hdr'), ls=document.getElementById('logo-sel');
+  if(lh) lh.src=LOGO_SRC; if(ls) ls.src=LOGO_SRC;
+  scnStore=loadScenarioStore();
+  const act=scnStore.presets[scnStore.active]||scnStore.presets[Object.keys(scnStore.presets)[0]];
+  if(act) P={...DEF,...act.params}; // 套用啟用情境的參數，initSim() 才會用到
+  renderParamPanel();
+  setupCameraControls();
+});
+</script>
+</body>
+</html>
