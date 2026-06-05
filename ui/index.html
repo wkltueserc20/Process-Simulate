@@ -681,13 +681,39 @@ function dryRunBlueprint(bp){
   }catch(e){ return {ok:false, msg:'乾跑錯誤：'+((e&&e.message)||e)}; }
   finally{ P=Psnap; LC=snap.LC; abfSt=snap.abfSt; abfAGVs=snap.abfAGVs; simT=snap.simT; abfPcs=snap.abfPcs; abfOut=snap.abfOut; running=snap.running; cdata=snap.cdata; }
 }
+// ── 統一儲存：桌面版（Tauri）跳原生「另存新檔」可自選路徑；瀏覽器沿用下載 ──
+// 用一律存在的底層 IPC（__TAURI_INTERNALS__），不依賴 withGlobalTauri，避免其注入機制擋掉本頁 inline script。
+function _tauriInvoke(cmd,args){
+  const ti=window.__TAURI_INTERNALS__;
+  if(ti && typeof ti.invoke==='function') return ti.invoke(cmd,args);
+  const tc=window.__TAURI__&&window.__TAURI__.core; // 萬一日後啟用 withGlobalTauri 也相容
+  if(tc && typeof tc.invoke==='function') return tc.invoke(cmd,args);
+  return Promise.reject(new Error('not-tauri'));
+}
+function isTauriEnv(){ return !!(window.__TAURI_INTERNALS__ && typeof window.__TAURI_INTERNALS__.invoke==='function')
+  || !!(window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke); }
+function _u8ToB64(u8){ let s='',CH=0x8000; for(let i=0;i<u8.length;i+=CH) s+=String.fromCharCode.apply(null,u8.subarray(i,i+CH)); return btoa(s); }
+// blob=內容；name=預設檔名；filterName/exts=對話框副檔名過濾。回傳 false 表使用者取消
+async function saveBlob(blob, name, filterName, exts){
+  if(isTauriEnv()){
+    try{
+      const u8=new Uint8Array(await blob.arrayBuffer());
+      const path=await _tauriInvoke('save_file',
+        {defaultName:name, b64:_u8ToB64(u8), filterName:filterName||'檔案', exts:exts||[]});
+      if(path) toast('已儲存：'+path,'ok');
+      return !!path;
+    }catch(e){ toast('儲存失敗：'+((e&&e.message)||e),'err'); return false; }
+  }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=name; a.click(); URL.revokeObjectURL(a.href);
+  toast('已下載：'+name,'ok'); return true;
+}
 // 匯出 / 匯入 blueprint（JSON）
 function exportBlueprint(id){
   const bp=BLUEPRINTS[id]; if(!bp) return;
   const out={...bp, defaults: bp.defaults||lineDefaults(id), custom:undefined};
   const data=JSON.stringify({type:'sim-line-blueprint',schemaVersion:1,blueprint:out},null,2);
-  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));
-  a.download=`line-${id}.json`; a.click(); URL.revokeObjectURL(a.href);
+  saveBlob(new Blob([data],{type:'application/json'}), `line-${id}.json`, 'JSON', ['json']);
 }
 // 加入一個自訂線 blueprint（驗證 + 乾跑），回傳 {ok,msg}
 function addCustomLine(bp){
@@ -2623,9 +2649,7 @@ async function exportResultPNG(){
   x.fillStyle=C.dim; x.font='400 10px "Segoe UI",system-ui,sans-serif';
   x.fillText(`擎添工業 Ching Tech · 產生於 ${ts.disp}`,16,H-12);
   cv.toBlob(b=>{ if(!b){ toast('匯出失敗','err'); return; }
-    const a=document.createElement('a'); a.href=URL.createObjectURL(b);
-    a.download=`report-${R.line}-${ts.file}.png`; a.click(); URL.revokeObjectURL(a.href);
-    toast('已匯出 PNG 報告','ok'); },'image/png');
+    saveBlob(b, `report-${R.line}-${ts.file}.png`, 'PNG 圖片', ['png']); },'image/png');
 }
 function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
 // CSV 資料匯出（次要；UTF-8 BOM）
@@ -2645,9 +2669,7 @@ function exportResultCSV(){
   R.perAgv.forEach(a=>{const mv=a.tMove||0,hd=a.tHandle||0,id=a.tIdle||0,act=mv+hd,den=act+id;
     rows.push([a.id,(GRP_CLR[(a.grp||1)-1]||{}).name||('G'+(a.grp||1)),Math.round(mv),Math.round(hd),Math.round(id),den>0?Math.round(act/den*100):0]);});
   const csv='﻿'+rows.map(r=>r.map(q).join(',')).join('\r\n');
-  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
-  a.download=`results-${R.line}-${ts.file}.csv`; a.click(); URL.revokeObjectURL(a.href);
-  toast('已匯出 CSV','ok');
+  saveBlob(new Blob([csv],{type:'text/csv;charset=utf-8'}), `results-${R.line}-${ts.file}.csv`, 'CSV', ['csv']);
 }
 
 // ── 方案比較表（session 內累積，純呈現） ──
@@ -2798,9 +2820,7 @@ function rebuildScenarioOptions(active){
 function exportParams(){
   const name=(scnStore&&scnStore.active)||'scenario';
   const data=JSON.stringify({type:'sim-scenario',name,line:selectedLine,params:readInputs()},null,2);
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));
-  a.download=`scenario-${name}.json`;a.click();URL.revokeObjectURL(a.href);
+  saveBlob(new Blob([data],{type:'application/json'}), `scenario-${name}.json`, 'JSON', ['json']);
 }
 function showImportError(msg){const ind=document.getElementById('dirty-ind');if(ind){ind.className='';ind.textContent='⚠ '+msg;}}
 function importParams(e){
