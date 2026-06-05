@@ -1,0 +1,25 @@
+# result-scorecard Specification
+
+## Purpose
+TBD - created by archiving change ux-improvement-pass. Update Purpose after archive.
+## Requirements
+### Requirement: 成績單式結果呈現
+
+達標或計算結果視窗 SHALL 以「成績單」版面一眼呈現關鍵結果（完成片數、平均產能/UPH、模擬時間、最重瓶頸、ETA），並提供匯出與比較的行動入口。
+
+#### Scenario: 達標結果
+- **WHEN** 模擬達到目標片數
+- **THEN** 結果視窗以成績單呈現完成片數、平均產能、模擬時間與最重瓶頸，並提供匯出/釘選比較入口
+
+#### Scenario: 達上限未達標結果
+- **WHEN** 「立即結果」跑到模擬上限仍未達標
+- **THEN** 結果視窗清楚標示未達標，呈現目前進度、UPH 與預估達標時間
+
+### Requirement: 空狀態引導
+
+系統 SHALL 在「尚未開始模擬」「尚無結果可匯出/釘選」等情境提供明確的引導或停用提示，而非無回饋。
+
+#### Scenario: 尚無結果可匯出
+- **WHEN** 使用者在尚無模擬結果時嘗試匯出或釘選
+- **THEN** 系統以明確訊息告知尚無結果，並引導先執行模擬
+

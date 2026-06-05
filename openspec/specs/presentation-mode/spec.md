@@ -1,0 +1,33 @@
+# presentation-mode Specification
+
+## Purpose
+TBD - created by archiving change ux-improvement-pass. Update Purpose after archive.
+## Requirements
+### Requirement: 版面對視窗寬度自適應
+
+系統 SHALL 在視窗變窄時調整控制列佈局（換行或收納次要群、縮短標籤），避免控制項溢出或破版。
+
+#### Scenario: 窄視窗不破版
+- **WHEN** 視窗寬度縮小到無法容納整列控制
+- **THEN** 控制列以換行或收納次要群的方式維持可用，不會溢出或重疊
+
+#### Scenario: 寬視窗完整呈現
+- **WHEN** 視窗回到足夠寬度
+- **THEN** 控制列恢復完整呈現
+
+### Requirement: 簡報 / 大字模式
+
+系統 SHALL 提供「簡報模式」：隱藏次要控制與參數面板、放大流程圖，並以超大字呈現關鍵指標（已完成、UPH、ETA、瓶頸），供會議室投影 glanceable 使用。
+
+#### Scenario: 進入簡報模式
+- **WHEN** 使用者透過按鈕或快捷鍵啟用簡報模式
+- **THEN** 畫面隱藏次要控制與參數抽屜、放大流程圖，並以超大字顯示關鍵指標
+
+#### Scenario: 退出簡報模式
+- **WHEN** 使用者按 Esc 或再次切換
+- **THEN** 畫面恢復為一般模式，且模擬狀態不受影響
+
+#### Scenario: 簡報模式下模擬持續可運作
+- **WHEN** 簡報模式啟用且模擬進行中
+- **THEN** 流程圖與關鍵指標持續即時更新
+

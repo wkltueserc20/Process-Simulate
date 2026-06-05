@@ -16,7 +16,10 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 #logo-hdr{height:50px;width:auto;flex-shrink:0}
 #hdr-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
 #hdr-info{display:flex;align-items:center;gap:16px}
-#hdr-ctrl{display:flex;align-items:center;gap:8px}
+#hdr-ctrl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* 工具群降權：平常無框、dim 色，hover 才浮現 */
+#hdr-ctrl .grp-tools button{color:var(--dim);border-color:transparent;background:transparent}
+#hdr-ctrl .grp-tools button:hover{color:var(--accent);background:var(--card);border-color:var(--border)}
 #ttl{font-size:15px;font-weight:700;color:var(--accent);white-space:nowrap}
 #clk{font-family:'Courier New',monospace;font-size:22px;color:var(--yellow);min-width:96px}
 .cg{display:flex;gap:4px;align-items:center;flex-shrink:0}
@@ -46,6 +49,39 @@ button.pri:hover{color:#fff;filter:brightness(1.08)}
 #bot-toggle:hover{color:var(--accent)}
 #bot-toggle .arrow{transition:transform .25s;font-size:10px}
 #bot-toggle.open .arrow{transform:rotate(180deg)}
+/* 生命徵象條：常駐顯示 UPH / 已完成 / ETA / 瓶頸，獨立於統計圖表覆蓋層 */
+#vitals{display:flex;align-items:center;gap:22px;padding:6px 16px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0;font-variant-numeric:tabular-nums;flex-wrap:wrap}
+#vitals .vc{display:flex;align-items:baseline;gap:7px}
+#vitals .vk{font-size:11px;color:var(--dim);white-space:nowrap}
+#vitals .vv{font-size:16px;font-weight:700;white-space:nowrap}
+#vitals .vv.abf{color:var(--abf)}
+#vitals .vv.grn{color:var(--green)}
+#vitals .vbnk{margin-left:auto;font-size:12px;font-weight:600;padding:4px 12px;border-radius:14px;cursor:pointer;background:var(--card);border:1px solid var(--border);transition:all .15s;white-space:nowrap}
+#vitals .vbnk.ok{color:var(--green)}
+#vitals .vbnk.bad{color:#fff;background:var(--red);border-color:var(--red)}
+#vitals .vbnk.bad:hover{filter:brightness(1.08)}
+#vitals .vbnk.ok:hover{border-color:var(--accent);color:var(--accent)}
+/* 簡報 / 大字模式：隱藏次要元素、放大流程圖與 vitals，供會議室投影 glanceable */
+body.present #sb,body.present #bot,body.present #bot-toggle{display:none!important}
+body.present #hdr-ctrl .grp-tools,body.present #hdr-ctrl .hdr-sep{display:none}
+body.present #ttl{font-size:18px}
+body.present #clk{font-size:30px}
+body.present #vitals{gap:clamp(28px,5vw,72px);padding:16px 32px;justify-content:center}
+body.present #vitals .vk{font-size:clamp(14px,1.6vw,20px)}
+body.present #vitals .vv{font-size:clamp(30px,5vw,52px)}
+body.present #vitals .vbnk{font-size:clamp(18px,2.4vw,28px);padding:10px 26px;border-radius:26px}
+body.present #btn-present{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* RWD：窄視窗縮短 header、避免破版 */
+@media (max-width:1100px){
+  #hdr-info{gap:10px}
+  #clk{font-size:18px;min-width:72px}
+  #vitals{gap:14px}
+}
+@media (max-width:820px){
+  #ttl{display:none}
+  #hdr-ctrl{gap:5px}
+  button{padding:5px 8px}
+}
 /* 統計圖表：覆蓋層，打開時蓋住流程圖成為主畫面 */
 #bot{position:absolute;inset:0;display:flex;background:var(--bg);z-index:60;overflow:hidden;animation:botIn .18s ease}
 #bot.collapsed{display:none}
@@ -129,7 +165,7 @@ button.pri:hover{color:#fff;filter:brightness(1.08)}
 @keyframes mproc{0%,100%{opacity:1;filter:brightness(1)}50%{opacity:.75;filter:brightness(1.4)}}
 .slb{fill:var(--slb);font-size:11px;text-anchor:middle;dominant-baseline:middle}
 .llb{fill:var(--llb);font-size:16px;font-weight:700}
-.llb2{fill:var(--dim);font-size:11px}
+.llb2{fill:var(--dim);font-size:12.5px;font-weight:500}
 #ov{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border:2px solid var(--green);border-radius:8px;padding:24px 32px;text-align:center;z-index:100}
 #ov.show{display:block}
 #ov h2{color:var(--green);margin-bottom:8px}
@@ -219,6 +255,15 @@ html[data-theme=dark] #clk{color:var(--yellow)}
 #cmp-table-ov .rmcol:hover{color:var(--red)}
 #cmp-table-ov .empty{color:var(--dim);font-size:12px;padding:22px 8px;text-align:center}
 .ov-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+/* 成績單式結果 */
+.scard{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:10px;margin:12px 0 6px}
+.scard .sc{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 8px;text-align:center}
+.scard .sc .k{font-size:11px;color:var(--dim);margin-bottom:4px}
+.scard .sc .v{font-size:23px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15;color:var(--text)}
+.scard .sc .v.grn{color:var(--green)}
+.scard .sc .v.red{color:var(--red)}
+.scard .sc .v .u{font-size:12px;font-weight:400;color:var(--dim)}
+.ov-hint{font-size:12px;color:var(--dim);margin:2px 0 4px;line-height:1.5}
 /* ── 上手引導 coachmark（浮動卡，不擋操作）── */
 #coach{position:fixed;left:18px;bottom:18px;z-index:330;background:var(--surface);border:1px solid var(--accent);border-left:4px solid var(--accent);border-radius:8px;padding:12px 14px;font-size:12px;max-width:300px;box-shadow:0 4px 20px #0004;display:none}
 #coach.show{display:block}
@@ -243,7 +288,7 @@ html[data-theme=dark] #clk{color:var(--yellow)}
     </div>
     <!-- 下：控制列 -->
     <div id="hdr-ctrl">
-      <div class="cg">
+      <div class="cg" role="group" aria-label="播放控制">
         <button id="bplay" class="pri" onclick="togglePlay()" aria-label="播放或暫停模擬（空白鍵）">▶ 播放</button>
         <div class="seg" role="group" aria-label="模擬速度">
           <button id="b1x" class="act" onclick="setSpeed(1)" aria-label="速度 1 倍">1×</button>
@@ -254,15 +299,19 @@ html[data-theme=dark] #clk{color:var(--yellow)}
         <button id="btn-fast" onclick="fastForward()" aria-label="立即跑到結果（右方向鍵）">⏩ 立即結果</button>
       </div>
       <div class="hdr-sep"></div>
-      <div class="cg">
+      <div class="cg" role="group" aria-label="檢視與導覽">
         <button class="rst" onclick="resetSim()" aria-label="重置模擬（R）">↺ 重置</button>
         <button class="rst" onclick="backToSelect()" aria-label="切換製程線">⇄ 切換線</button>
+        <button id="btn-view" onclick="toggleView()" aria-label="切換精簡或詳細視圖">▤ 精簡</button>
       </div>
       <div class="hdr-sep"></div>
-      <div class="cg">
-        <button id="btn-view" onclick="toggleView()" aria-label="切換精簡或詳細視圖">▤ 精簡</button>
+      <div class="cg" role="group" aria-label="分析與呈現">
         <button onclick="toggleAgvBoard()" aria-label="開啟 AGV 稼動看板">📊 看板</button>
         <button onclick="openComparison()" aria-label="開啟方案比較表">📋 比較</button>
+        <button id="btn-present" onclick="togglePresent()" aria-label="切換簡報大字模式（F）">📺 簡報</button>
+      </div>
+      <div class="hdr-sep"></div>
+      <div class="cg grp-tools" role="group" aria-label="工具">
         <button onclick="resetCamera()" aria-label="重置流程圖視角">⤢ 視角</button>
         <button onclick="toggleSB()" aria-label="開關參數面板（P）">⚙ 參數</button>
         <button id="btn-theme" onclick="toggleTheme()" aria-label="切換深色或淺色主題">🌙 深色</button>
@@ -305,6 +354,12 @@ html[data-theme=dark] #clk{color:var(--yellow)}
       <div id="bnklist"><div class="nob">目前無瓶頸</div></div><div id="bnk-advice"></div></div>
     </div>
   </div>
+  </div>
+  <div id="vitals" role="group" aria-label="即時關鍵指標">
+    <div class="vc"><span class="vk">已完成</span><span class="vv grn" id="v-done">0 片</span></div>
+    <div class="vc"><span class="vk">UPH</span><span class="vv abf" id="v-uph">—</span></div>
+    <div class="vc"><span class="vk">預估完成</span><span class="vv" id="v-eta">—</span></div>
+    <button id="v-bnk" class="vbnk ok" onclick="toggleBot()" aria-label="瓶頸狀態，點擊查看統計與瓶頸細節">🟢 無瓶頸</button>
   </div>
   <div id="bot-toggle" onclick="toggleBot()">
     <span class="arrow">▲</span>
@@ -388,10 +443,10 @@ html[data-theme=dark] #clk{color:var(--yellow)}
 </div>
 <div id="ov" role="dialog" aria-modal="true" aria-labelledby="ovh"><h2 id="ovh">模擬完成</h2><p id="ovm"></p>
   <div class="ov-actions">
+    <button class="pri" onclick="pinScenario();toast('已釘選此方案','ok')" aria-label="釘選此方案以比較">📌 釘選此方案</button>
+    <button onclick="openComparison()" aria-label="開啟方案比較">📋 比較表</button>
     <button onclick="exportResultPNG()" aria-label="匯出 PNG 圖片報告">🖼 匯出 PNG</button>
-    <button onclick="exportResultCSV()" aria-label="匯出 CSV 資料">CSV</button>
-    <button onclick="pinScenario();toast('已釘選此方案','ok')" aria-label="釘選此方案">📌 釘選</button>
-    <button onclick="openComparison()" aria-label="開啟方案比較">📋 比較</button>
+    <button onclick="exportResultCSV()" aria-label="匯出 CSV 資料">⬇ CSV</button>
   </div>
   <button onclick="closeOv()" style="margin-top:12px">關閉</button>
 </div>
@@ -1036,9 +1091,15 @@ function stPiled(s){
   return false;
 }
 const BNK_TH=150; // 瓶頸判定門檻（秒）
+function setVitalsBnk(n){
+  const b=document.getElementById('v-bnk'); if(!b) return;
+  if(n>0){ b.className='vbnk bad'; b.textContent=`🔴 ${n} 站堆積`; }
+  else { b.className='vbnk ok'; b.textContent='🟢 無瓶頸'; }
+}
 function refreshBottleneck(){
   const bl=document.getElementById('bnklist'); if(!bl) return;
   const piles=abfSt.filter(s=>(s.pileT||0)>BNK_TH).sort((a,b)=>(b.pileT||0)-(a.pileT||0));
+  setVitalsBnk(piles.length);
   if(!piles.length){ bl.innerHTML='<div class="nob">目前無瓶頸</div>'; renderAdvice([]); _announcedBnk.clear(); return; }
   bl.innerHTML=piles.map(s=>`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">`
     +`<span class="bb">堆積</span><span style="font-size:11px;margin:0 4px;flex:1">${s.name}</span>`
@@ -1153,12 +1214,32 @@ function stepABFAgv(agv, dt){
   }
 }
 
+// 成績單：兩種結果（live 達標 / 立即結果）共用，一眼呈現關鍵指標 + 決策引導
+function resultScorecard(reached){
+  const R=gatherResults();
+  const done=R.done, avg=simT>0?Math.round(done/(simT/3600)):0;
+  const worst=R.worst?R.worst.name:'無';
+  const worstCls=R.worst?'red':'grn';
+  const lastCell=reached
+    ? `<div class="sc"><div class="k">達標狀態</div><div class="v grn" style="font-size:18px">✅ 已達標</div></div>`
+    : `<div class="sc"><div class="k">預估達標</div><div class="v" style="font-size:17px">${R.eta||'—'}</div></div>`;
+  let hint='💡 想比較不同設備配置？按「📌 釘選」存起來，再開「📋 比較」並排看差異。';
+  if(R.worst) hint+=`<br>🔴 最重瓶頸在 <b>${worst}</b>，可開「統計圖表」查看增設建議。`;
+  return `<div class="scard">`
+    +`<div class="sc"><div class="k">完成 / 目標</div><div class="v grn">${nf(done)}<span class="u"> / ${nf(R.target)}</span></div></div>`
+    +`<div class="sc"><div class="k">平均產能</div><div class="v">${nf(avg)}<span class="u"> 片/hr</span></div></div>`
+    +`<div class="sc"><div class="k">模擬時間</div><div class="v" style="font-size:18px">${fmt(R.simT)}</div></div>`
+    +`<div class="sc"><div class="k">最重瓶頸</div><div class="v ${worstCls}" style="font-size:16px">${worst}</div></div>`
+    +lastCell
+    +`</div><div class="ov-hint">${hint}</div>`;
+}
 function checkDone(){
   const tot=abfPcs; // 作用線產出一律累計於 abfPcs
   if(tot>=tgCur){
     running=false;
     document.getElementById('bplay').textContent='▶ 播放';
-    document.getElementById('ovm').textContent=`已完成 ${nf(tot)} 片，模擬時間 ${fmt(simT)}`;
+    const ovh=document.getElementById('ovh'); if(ovh) ovh.textContent='✅ 達成目標';
+    document.getElementById('ovm').innerHTML=resultScorecard(true);
     openOv();
   }
 }
@@ -1227,20 +1308,10 @@ function fastForward(){
   requestAnimationFrame(step);
 }
 function showFastResult(){
-  const done=abfPcs, reached=done>=tgCur;
-  const avg = simT>0 ? Math.round(done/(simT/3600)) : 0; // 平均產能 = 總片數 / 總時數
-  const recentUph=calcUPH(abfOut,simT,curBatch());
+  const reached=abfPcs>=tgCur;
   const ovh=document.getElementById('ovh'), ovm=document.getElementById('ovm');
-  let msg;
-  if(reached){
-    if(ovh) ovh.textContent='✅ 達成目標';
-    msg=`完成 ${nf(tgCur)} 片<br>模擬時間 <b>${fmt(simT)}</b><br>平均產能 <b>${nf(avg)}</b> 片/hr`;
-  } else {
-    if(ovh) ovh.textContent='⏱ 計算結果（達上限）';
-    let eta='—'; if(recentUph>0) eta=fmt(simT + (tgCur-done)/recentUph*3600);
-    msg=`已模擬 ${fmt(simT)}<br>完成 ${nf(done)} / ${nf(tgCur)} 片<br>目前 UPH ${nf(recentUph)} 片/hr<br>預估達標時間 <b>${eta}</b>`;
-  }
-  if(ovm) ovm.innerHTML=msg;
+  if(ovh) ovh.textContent = reached ? '✅ 達成目標' : '⏱ 計算結果（達上限）';
+  if(ovm) ovm.innerHTML=resultScorecard(reached);
   openOv();
 }
 function openOv(){ const ov=document.getElementById('ov'); ov.classList.add('show'); trapFocus(ov);
@@ -1255,6 +1326,15 @@ function toggleBot(){
   bot.classList.toggle('collapsed',!open);
   tog.classList.toggle('open',open);
   if(open && chart) setTimeout(()=>{chart.resize();applyChartView();},30);
+}
+// 簡報 / 大字模式：疊加 body.present class（不改 DOM 結構，好回退）；不持久化（暫態 demo 狀態）
+function togglePresent(force){
+  const on = force===undefined ? !document.body.classList.contains('present') : !!force;
+  document.body.classList.toggle('present', on);
+  const b=document.getElementById('btn-present'); if(b) b.textContent = on ? '📺 離開簡報' : '📺 簡報';
+  // 流程圖尺寸變了 → 重置攝影機以充分利用空間
+  if(typeof resetCamera==='function') setTimeout(resetCamera,260);
+  announce(on?'已進入簡報模式':'已離開簡報模式');
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2062,13 +2142,11 @@ function updateProgressAndStats(tot, uph){
   let etaTxt='—';
   if(uph>0&&tot<tgCur){ etaTxt=fmt(simT+(tgCur-tot)/uph*3600); }
   document.getElementById('s-eta').textContent=etaTxt;
-  // mini stats in toggle bar when bot is collapsed
-  const mini=document.getElementById('bot-mini');
-  if(mini){
-    const uphDisp=uph>0?`${nf(uph)} 片/hr`:'—';
-    mini.textContent=document.getElementById('bot').classList.contains('collapsed')
-      ? `完成 ${nf(tot)} 片　UPH ${uphDisp}　預估完成 ${etaTxt}` : '';
-  }
+  // 生命徵象條（常駐，獨立於統計圖表覆蓋層）
+  const uphDisp=uph>0?`${nf(uph)} 片/hr`:'—';
+  const vd=document.getElementById('v-done'); if(vd) vd.textContent=`${nf(tot)} / ${nf(tgCur)} 片`;
+  const vu=document.getElementById('v-uph'); if(vu) vu.textContent=uphDisp;
+  const ve=document.getElementById('v-eta'); if(ve) ve.textContent=etaTxt;
   if(cmpState) renderCompareCard(); // 對比卡隨模擬即時更新差值
 }
 
@@ -3133,6 +3211,7 @@ function setupKeyboard(){
       if(agvBoardOpen){ toggleAgvBoard(); return; }
       const ov=document.getElementById('ov');
       if(ov.classList.contains('show')){ closeOv(); return; }
+      if(document.body.classList.contains('present')){ togglePresent(false); return; }
       if(document.getElementById('sb').classList.contains('open')){ toggleSB(); return; }
       return;
     }
@@ -3147,6 +3226,7 @@ function setupKeyboard(){
       case '5': setSpeed(5); break;
       case 'r': case 'R': resetSim(); break;
       case 'p': case 'P': toggleSB(); break;
+      case 'f': case 'F': togglePresent(); break;
     }
   });
 }
